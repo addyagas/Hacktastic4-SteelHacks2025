@@ -1,3 +1,38 @@
+function getMaxPossibleScore() {
+  return RULES.reduce((total, rule) => total + rule.w, 0);
+}
+
+function interpretScamScore(percentageScore) {
+  if (percentageScore >= 70) return { level: 'high', description: 'Highly likely to be a scam. Multiple strong indicators detected.' };
+  if (percentageScore >= 40) return { level: 'medium', description: 'Moderate risk of being a scam. Some concerning patterns found.' };
+  if (percentageScore >= 20) return { level: 'low', description: 'Low risk, but stay vigilant. Some concerning patterns detected.' };
+  return { level: 'minimal', description: 'Minimal risk detected. Very few or no concerning patterns found.' };
+}
+
+function calculateScamScore(text) {
+  let totalScore = 0;
+  let matchedRules = [];
+  const maxScore = getMaxPossibleScore();
+
+  RULES.forEach(rule => {
+    if (rule.rx.test(text)) {
+      totalScore += rule.w;
+      matchedRules.push({ tag: rule.tag, weight: rule.w });
+    }
+  });
+
+  const percentageScore = (totalScore / maxScore) * 100;
+  const interpretation = interpretScamScore(percentageScore);
+  return {
+    score: totalScore,
+    percentageScore: Math.round(percentageScore),
+    maxPossibleScore: maxScore,
+    matches: matchedRules,
+    riskLevel: interpretation.level,
+    description: interpretation.description
+  };
+}
+
 const RULES = [
     // URGENCY / TIME PRESSURE
     { rx: /(urgent|immediately|right now|now|asap|don’t delay|this minute)/i, w: 18, tag: "urgency" },
@@ -117,3 +152,9 @@ const RULES = [
   { rx: /(help me|need your help|please help)/i, w: 8, tag: "help_request" },
   { rx: /(scam|fraud|suspicious)/i, w: 6, tag: "self_reference" }
 ];
+
+module.exports = {
+  calculateScamScore,
+  interpretScamScore,
+  RULES
+};

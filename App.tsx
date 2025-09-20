@@ -16,10 +16,10 @@ const App: React.FC = () => {
                 
                 <div className="space-y-4">
                     <button className="btn-primary w-full text-lg py-4">
-                        🎤 Start Monitoring
+                        Start Monitoring
                     </button>
                     <button className="btn-secondary w-full text-lg py-4">
-                        📊 View Analysis
+                        View Analysis
                     </button>
                 </div>
                 

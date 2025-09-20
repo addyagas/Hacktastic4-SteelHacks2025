@@ -8,7 +8,7 @@ interface ThreatMeterProps {
 
 const ThreatResultDisplay: React.FC<ThreatMeterProps> = ({ result }) => {
     const score = result.score;
-    const meterColor = score > 66 ? 'text-red-500' : score > 33 ? 'text-yellow-500' : 'text-green-500';
+    const meterColor = score > 66 ? 'text-red-500' : score > 33 ? 'text-orange-500' : 'text-green-500';
 
     return (
         <div className="w-full flex flex-col items-center space-y-8">
@@ -43,11 +43,11 @@ const ThreatResultDisplay: React.FC<ThreatMeterProps> = ({ result }) => {
                 </div>
             </div>
             {result.keywordsFound.length > 0 && (
-                <div className="w-full bg-gray-100 p-4 rounded-xl">
-                    <h3 className="text-xl font-semibold text-gray-800 mb-3">Keywords Detected:</h3>
+                <div className="w-full bg-orange-50 p-6 rounded-2xl border border-orange-200">
+                    <h3 className="text-xl font-semibold text-primary mb-4">Keywords Detected:</h3>
                     <div className="flex flex-wrap justify-center gap-2">
                         {result.keywordsFound.map((keyword) => (
-                            <span key={keyword} className="bg-red-100 text-red-800 text-lg font-medium px-4 py-1 rounded-full">
+                            <span key={keyword} className="bg-gradient-secondary text-white text-lg font-medium px-4 py-2 rounded-full shadow-md">
                                 {keyword}
                             </span>
                         ))}

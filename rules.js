@@ -48,7 +48,72 @@ const RULES = [
     // LEGAL / URGENT FINES
     { rx: /(final notice|final warning|past due|overdue payment|collection agency)/i, w: 14, tag: "collection_threat" },
   
-    // GENERIC SCAM TRIGGERS (catch-alls)
-    { rx: /(help me|need your help|please help)/i, w: 8, tag: "help_request" },
-    { rx: /(scam|fraud|suspicious)/i, w: 6, tag: "self_reference" }
-  ];
+  // PHISHING DETECTION RULES
+  // Suspicious URLs and domains
+  { rx: /(http[s]?:\/\/[^\s]*(bit\.ly|tinyurl|goo\.gl|t\.co|short\.link))/i, w: 15, tag: "shortened_url" },
+  { rx: /(http[s]?:\/\/[^\s]*(\.tk|\.ml|\.ga|\.cf|\.click|\.download))/i, w: 18, tag: "suspicious_domain" },
+  { rx: /(http[s]?:\/\/[^\s]*[a-zA-Z0-9-]{20,}\.[a-zA-Z]{2,})/i, w: 12, tag: "long_random_url" },
+  { rx: /(http[s]?:\/\/[^\s]*\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/i, w: 16, tag: "ip_address_url" },
+  
+  // Email spoofing indicators
+  { rx: /(from:.*@.*\..*@.*\..*|reply-to.*@.*\..*@.*\.)/i, w: 20, tag: "email_spoofing" },
+  { rx: /(sender.*@.*\..*but.*reply.*@.*\..*)/i, w: 18, tag: "reply_to_spoofing" },
+  { rx: /(display.*name.*@.*different.*domain)/i, w: 15, tag: "display_name_spoofing" },
+  
+  // Suspicious attachments
+  { rx: /(attachment.*\.(exe|scr|bat|cmd|com|pif|vbs|js|jar|zip|rar|7z))/i, w: 20, tag: "malicious_attachment" },
+  { rx: /(download.*(invoice|receipt|document|statement).*\.(exe|scr|bat))/i, w: 22, tag: "disguised_executable" },
+  { rx: /(password.*protected.*zip|encrypted.*attachment)/i, w: 16, tag: "password_protected_attachment" },
+  
+  // Fake login pages and credential harvesting
+  { rx: /(login.*page.*expired|session.*expired.*login|verify.*account.*login)/i, w: 18, tag: "fake_login_page" },
+  { rx: /(update.*billing.*information|verify.*payment.*method|confirm.*account.*details)/i, w: 16, tag: "credential_harvesting" },
+  { rx: /(suspended.*account.*reactivate|locked.*account.*unlock)/i, w: 14, tag: "account_suspension_scam" },
+  
+  // Impersonation and brand spoofing
+  { rx: /(microsoft.*support|apple.*support|google.*support|amazon.*support)/i, w: 12, tag: "tech_support_impersonation" },
+  { rx: /(paypal.*security.*team|bank.*security.*department|irs.*collection.*unit)/i, w: 14, tag: "financial_impersonation" },
+  { rx: /(fedex.*delivery.*team|ups.*shipping.*department|usps.*postal.*service)/i, w: 12, tag: "shipping_impersonation" },
+  
+  // Social media and dating scams
+  { rx: /(facebook.*security.*team|instagram.*support.*team|twitter.*verification)/i, w: 12, tag: "social_media_impersonation" },
+  { rx: /(military.*deployed.*overseas|oil.*rig.*worker.*stranded)/i, w: 16, tag: "romance_scam_profile" },
+  { rx: /(inheritance.*from.*deceased|lottery.*winner.*claim.*prize)/i, w: 18, tag: "inheritance_lottery_scam" },
+  
+  // Investment and crypto scams
+  { rx: /(guaranteed.*return.*investment|risk.*free.*trading.*opportunity)/i, w: 16, tag: "investment_scam" },
+  { rx: /(double.*your.*bitcoin|crypto.*mining.*investment.*guaranteed)/i, w: 18, tag: "crypto_investment_scam" },
+  { rx: /(pump.*and.*dump.*scheme|insider.*trading.*tip)/i, w: 20, tag: "securities_fraud" },
+  
+  // Job and work-from-home scams
+  { rx: /(work.*from.*home.*no.*experience.*needed|make.*money.*online.*guaranteed)/i, w: 14, tag: "work_from_home_scam" },
+  { rx: /(mystery.*shopper.*job|package.*forwarding.*job|check.*cashing.*job)/i, w: 16, tag: "job_scam" },
+  { rx: /(send.*us.*your.*resume.*and.*ssn|background.*check.*requires.*ssn)/i, w: 18, tag: "identity_theft_job" },
+  
+  // Charity and disaster scams
+  { rx: /(urgent.*donation.*needed|disaster.*relief.*fund|help.*victims.*send.*money)/i, w: 14, tag: "charity_scam" },
+  { rx: /(go.*fund.*me.*fake.*campaign|crowdfunding.*scam)/i, w: 12, tag: "crowdfunding_scam" },
+  
+  // Lottery and sweepstakes scams
+  { rx: /(congratulations.*you.*won.*lottery|sweepstakes.*winner.*claim.*prize)/i, w: 16, tag: "lottery_scam" },
+  { rx: /(nigerian.*prince.*inheritance|foreign.*government.*official.*needs.*help)/i, w: 20, tag: "nigerian_prince_scam" },
+  
+  // Tech support and software scams
+  { rx: /(windows.*security.*alert|microsoft.*detected.*virus|your.*computer.*is.*infected)/i, w: 14, tag: "tech_support_scam" },
+  { rx: /(subscription.*renewal.*required|payment.*method.*expired.*update)/i, w: 12, tag: "subscription_scam" },
+  { rx: /(software.*license.*expired|product.*key.*invalid.*purchase)/i, w: 10, tag: "software_license_scam" },
+  
+  // Banking and financial institution scams
+  { rx: /(suspicious.*activity.*detected.*account|unauthorized.*login.*attempt)/i, w: 16, tag: "banking_scam" },
+  { rx: /(card.*compromised.*replace.*immediately|fraud.*detected.*verify.*identity)/i, w: 14, tag: "card_fraud_scam" },
+  { rx: /(wire.*transfer.*to.*secure.*account|move.*money.*to.*safe.*account)/i, w: 18, tag: "bank_transfer_scam" },
+  
+  // Government and tax scams
+  { rx: /(irs.*tax.*refund.*claim|social.*security.*benefits.*suspended)/i, w: 16, tag: "government_scam" },
+  { rx: /(arrest.*warrant.*issued.*unless.*payment|court.*summons.*immediate.*response)/i, w: 18, tag: "legal_threat_scam" },
+  { rx: /(medicare.*card.*replacement.*required|medicaid.*benefits.*suspended)/i, w: 14, tag: "healthcare_scam" },
+  
+  // Generic phishing indicators
+  { rx: /(help me|need your help|please help)/i, w: 8, tag: "help_request" },
+  { rx: /(scam|fraud|suspicious)/i, w: 6, tag: "self_reference" }
+];

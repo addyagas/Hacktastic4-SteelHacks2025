@@ -20,18 +20,18 @@ const App: React.FC = () => {
               />
             </svg>
           </div>
-          <h1 className="heading-primary text-5xl text-gray-900">Senior Guard</h1>
+          <h1 className="heading-primary text-5xl text-gray-900">VishNet</h1>
           <p className="text-body text-xl text-gray-600">
-            Your Personal Scam Detector
+            Your Personal Vishing Scam Detector
           </p>
         </div>
 
         <div className="space-y-4">
           <button className="w-full text-lg py-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow transition-colors duration-200">
-            🎤 Start Monitoring
+            Press Here to Start Monitoring Your Call
           </button>
           <button className="w-full text-lg py-4 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-lg shadow transition-colors duration-200">
-            📊 View Analysis
+            Press Here to View Analysis
           </button>
         </div>
 

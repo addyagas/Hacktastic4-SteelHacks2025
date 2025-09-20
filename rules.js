@@ -35,7 +35,7 @@ function calculateScamScore(text) {
 
 const RULES = [
     // URGENCY / TIME PRESSURE
-    { rx: /(urgent|immediately|right now|now|asap|don’t delay|this minute)/i, w: 18, tag: "urgency" },
+    { rx: /(urgent|immediately|right now|now|asap|don't delay|this minute)/i, w: 18, tag: "urgency" },
     { rx: /(before.*(end of day|today|tomorrow))/i, w: 12, tag: "deadline" },
   
     // PAYMENT / MONEY REQUESTS
@@ -57,7 +57,7 @@ const RULES = [
     { rx: /(read me your (pin|password|code|ssn|social security number))/i, w: 22, tag: "sensitive_request" },
   
     // SECRECY / ISOLATION REQUESTS
-    { rx: /(don’t tell|keep this (secret|between us)|do not mention to anyone)/i, w: 14, tag: "secrecy" },
+    { rx: /(don't tell|keep this (secret|between us)|do not mention to anyone)/i, w: 14, tag: "secrecy" },
   
     // NEW PAYEE / URGENCY TO SETUP
     { rx: /(new (account|payee|recipient)|we need new payment info)/i, w: 12, tag: "new_payee" },
@@ -70,7 +70,7 @@ const RULES = [
     { rx: /(venmo|cash(app)?|zelle|paypal.me|western union|moneygram)/i, w: 16, tag: "fast_payment_channel" },
   
     // SOCIAL-ENGINEERING PHRASES
-    { rx: /(this is confidential|you must do this now|if you don’t comply)/i, w: 12, tag: "social_pressure" },
+    { rx: /(this is confidential|you must do this now|if you don't comply)/i, w: 12, tag: "social_pressure" },
     { rx: /(only for you|do not discuss|for security reasons do not)/i, w: 10, tag: "isolating_instruction" },
   
     // SPOOF / CALLBACK REQUESTS

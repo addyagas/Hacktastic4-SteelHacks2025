@@ -11,9 +11,9 @@ interface ActionButtonProps {
 
 const ActionButton: React.FC<ActionButtonProps> = ({ onClick, label, color, disabled = false, icon }) => {
     const colorClasses = {
-        green: 'bg-gradient-secondary hover:shadow-xl focus:ring-orange-500',
-        red: 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 focus:ring-red-500',
-        blue: 'bg-gradient-primary hover:shadow-xl focus:ring-blue-500',
+        green: 'bg-blue-600 hover:bg-blue-700 hover:shadow-xl focus:ring-blue-500',
+        red: 'bg-red-600 hover:bg-red-700 focus:ring-red-500',
+        blue: 'bg-blue-500 hover:bg-blue-600 hover:shadow-xl focus:ring-blue-500',
     };
 
     return (

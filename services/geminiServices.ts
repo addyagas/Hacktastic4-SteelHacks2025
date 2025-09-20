@@ -1,11 +1,11 @@
 
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-if (!process.env.API_KEY) {
-    throw new Error("API_KEY environment variable is not set");
+if (!import.meta.env.VITE_API_KEY) {
+    throw new Error("VITE_API_KEY environment variable is not set");
 }
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const ai = new GoogleGenerativeAI(import.meta.env.VITE_API_KEY);
 
 export const getThreatExplanation = async (keywords: string[]): Promise<string> => {
     const prompt = `
@@ -18,14 +18,16 @@ export const getThreatExplanation = async (keywords: string[]): Promise<string> 
     `;
 
     try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: {
+        const model = ai.getGenerativeModel({ 
+            model: "gemini-1.5-flash",
+            generationConfig: {
                 temperature: 0.3,
             }
         });
-        return response.text;
+        
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        return response.text();
     } catch (error) {
         console.error("Gemini API error:", error);
         return "Could not get an explanation, but please be very cautious. The words detected are often used in scams. It's best to hang up and talk to someone you trust.";

@@ -17,7 +17,11 @@ export const THREAT_KEYWORDS: string[] = [
     'inheritance',
     'secret',
     'wire transfer',
-    'access'
+    'access',
+    'password',
+    'account',
+    'security',
+    'ssn'
 ];
 
 

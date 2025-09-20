@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { AppState, ThreatResult } from './types';
 import { THREAT_KEYWORDS, SIMULATED_TRANSCRIPT_PARTS } from './constants';
 import { getThreatExplanation } from './services/geminiServices';
@@ -7,7 +7,7 @@ import StatusDisplay from './components/StatusDisplay';
 import ActionButton from './components/ActionButton';
 import ThreatResultDisplay from './components/ThreatResultDisplay';
 import AlertModal from './components/AlertModal';
-import { ShieldCheckIcon, ShieldExclamationIcon, MicrophoneIcon, StopCircleIcon } from './components/Icons';
+import { MicrophoneIcon, StopCircleIcon } from './components/Icons';
 
 
 const App: React.FC = () => {

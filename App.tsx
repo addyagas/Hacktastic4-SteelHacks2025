@@ -47,7 +47,7 @@ const App: React.FC = () => {
                             className="btn-primary w-full text-lg py-4"
                             onClick={handleStartMonitoring}
                         >
-                            🎤 Start Monitoring
+                            Start Monitoring
                         </button>
                     )}
                     
@@ -56,7 +56,7 @@ const App: React.FC = () => {
                             className="btn-secondary w-full text-lg py-4"
                             disabled
                         >
-                            🎤 Listening...
+                            Listening...
                         </button>
                     )}
                     
@@ -65,13 +65,9 @@ const App: React.FC = () => {
                             className="btn-primary w-full text-lg py-4"
                             onClick={handleReset}
                         >
-                            🎤 Start New Scan
+                            Start New Scan
                         </button>
                     )}
-                    
-                    <button className="btn-secondary w-full text-lg py-4">
-                        📊 View Analysis
-                    </button>
                 </div>
                 
                 <div className="mt-8 p-4 bg-orange-50 rounded-xl border border-orange-200">

@@ -1,6 +1,6 @@
 import re
 
-# Risk level categories for rules
+# Risk level categories for rules - ALL NOW MULTIPLY BY 3
 RISK_LEVELS = {
     "high": {
         "multiplier": 3,
@@ -9,12 +9,12 @@ RISK_LEVELS = {
                  "bank_transfer_scam", "legal_threat_scam", "securities_fraud", "nigerian_prince_scam"}
     },
     "mid": {
-        "multiplier": 2, 
+        "multiplier": 3,  # Changed from 2 to 3
         "rules": {"phishing", "tech_support", "romance", "health", "social_media", "fake_charity",
                  "remote_support", "family_emergency", "malicious_attachment", "disguised_executable"}
     },
     "low": {
-        "multiplier": 1,
+        "multiplier": 3,  # Changed from 1 to 3
         "rules": {"generic", "persuasion", "mild_threat", "suspicious_link"}
     }
 }
@@ -204,7 +204,7 @@ def calculate_scam_score(text):
             "description": "No content to analyze"
         }
     
-    # First pass: find all matches and calculate weighted scores
+    # First pass: find all regex pattern matches from RULES
     for rule in RULES:
         tag = rule["tag"]
         weight = rule["w"]
@@ -212,13 +212,13 @@ def calculate_scam_score(text):
         match_count = len(matches)
         
         if match_count > 0:
-            risk_level, _ = get_risk_level(tag)
+            risk_level, multiplier = get_risk_level(tag)
             
             # Each match contributes to threat word count
             threat_word_count += match_count
             
-            # Calculate weighted contribution (match count * rule weight)
-            weighted_contribution = match_count * weight
+            # Calculate weighted contribution (match count * rule weight * multiplier)
+            weighted_contribution = match_count * weight * multiplier
             total_weighted_score += weighted_contribution
             
             # Record the match details
@@ -230,6 +230,85 @@ def calculate_scam_score(text):
                 "weighted_contribution": weighted_contribution
             }
             matched_rules.append(matched_rule)
+    
+    # Second pass: check for constants.py keywords that weren't caught by rules
+    try:
+        from constants import THREAT_KEYWORDS
+        import re as regex_module
+        
+        text_lower = text.lower()
+        constants_matches = []
+        
+        # Handle both dictionary and list formats of THREAT_KEYWORDS
+        if isinstance(THREAT_KEYWORDS, dict):
+            # New dictionary format: {keyword: risk_level}
+            keywords_to_check = THREAT_KEYWORDS.items()
+        else:
+            # Old list format: [keyword1, keyword2, ...]
+            # Assign default risk levels based on keyword characteristics
+            keywords_to_check = []
+            for keyword in THREAT_KEYWORDS:
+                # Auto-assign risk levels based on keyword content
+                keyword_lower = keyword.lower()
+                if any(high_risk_word in keyword_lower for high_risk_word in 
+                      ['gift card', 'wire transfer', 'bitcoin', 'warrant', 'arrest', 'irs', 'ssn', 
+                       'urgent', 'immediately', 'asap', 'compromised', 'suspended']):
+                    risk_level = 'high'
+                elif any(med_risk_word in keyword_lower for med_risk_word in 
+                        ['verify', 'suspicious', 'fee', 'access', 'password', 'account', 'security']):
+                    risk_level = 'medium'
+                else:
+                    risk_level = 'low'
+                keywords_to_check.append((keyword, risk_level))
+        
+        for keyword, risk_level in keywords_to_check:
+            # Create word boundary pattern for each keyword
+            pattern = regex_module.compile(r'\b' + regex_module.escape(keyword.lower()) + r'\b')
+            keyword_matches = list(pattern.finditer(text_lower))
+            
+            if keyword_matches:
+                # Check if this keyword was already caught by a rules.py pattern
+                already_counted = False
+                for rule_match in matched_rules:
+                    # Simple check - if keyword is part of a rule pattern, skip it
+                    # This is a basic approach to avoid double-counting
+                    if keyword.lower() in str(rule_match.get('tag', '')).lower():
+                        already_counted = True
+                        break
+                
+                if not already_counted:
+                    match_count = len(keyword_matches)
+                    threat_word_count += match_count
+                    
+                    # Assign weight based on risk level from constants.py
+                    if risk_level == 'high':
+                        base_weight = 25
+                        multiplier = 3
+                    elif risk_level == 'medium':
+                        base_weight = 15
+                        multiplier = 3
+                    else:  # low
+                        base_weight = 10
+                        multiplier = 3
+                    
+                    weighted_contribution = match_count * base_weight * multiplier
+                    total_weighted_score += weighted_contribution
+                    
+                    constants_match = {
+                        "tag": f"constants_{keyword}",
+                        "risk_level": risk_level,
+                        "weight": base_weight,
+                        "match_count": match_count,
+                        "weighted_contribution": weighted_contribution,
+                        "source": "constants.py"
+                    }
+                    constants_matches.append(constants_match)
+        
+        # Add constants matches to the main matches list
+        matched_rules.extend(constants_matches)
+        
+    except ImportError:
+        pass  # constants.py not available, skip this step
     
     # Calculate the ratio of threat words to total words
     threat_ratio = threat_word_count / total_word_count if total_word_count > 0 else 0

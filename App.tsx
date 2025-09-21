@@ -2,15 +2,12 @@ import React, { useState, useRef } from 'react';
 import { transcribeAudio } from './services/assemblyAIService';
 
 const App: React.FC = () => {
-
     const [isListening, setIsListening] = useState(false);
     const [status, setStatus] = useState('Ready to protect');
-    const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
     const [audioURL, setAudioURL] = useState<string | null>(null);
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
     const [transcript, setTranscript] = useState<string | null>(null);
     const audioChunks = useRef<Blob[]>([]);
-
 
     const handleStartMonitoring = () => {
         setTranscript(null);
@@ -18,10 +15,10 @@ const App: React.FC = () => {
         setAudioBlob(null);
         audioChunks.current = [];
         setStatus('Requesting microphone access...');
+
         navigator.mediaDevices.getUserMedia({ audio: true })
             .then((stream) => {
-                const recorder = new MediaRecorder(stream);
-                setMediaRecorder(recorder);
+                const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
                 setIsListening(true);
                 setStatus('Listening for threats...');
 
@@ -51,7 +48,6 @@ const App: React.FC = () => {
             });
     };
 
-
     const handleReset = () => {
         setIsListening(false);
         setStatus('Ready to protect');
@@ -60,11 +56,9 @@ const App: React.FC = () => {
         setTranscript(null);
     };
 
-    // Real implementation using AssemblyAI Speech-to-Text API
     const handleTranscribe = async () => {
         if (!audioBlob) return;
         setStatus('Transcribing with AssemblyAI...');
-        
         try {
             const result = await transcribeAudio(audioBlob);
             setTranscript(result);
@@ -91,19 +85,13 @@ const App: React.FC = () => {
 
                 <div className="space-y-4">
                     {!isListening && status === 'Ready to protect' && (
-                        <button 
-                            className="btn-primary w-full text-lg py-4"
-                            onClick={handleStartMonitoring}
-                        >
+                        <button className="btn-primary w-full text-lg py-4" onClick={handleStartMonitoring}>
                             Start Monitoring (Record Audio)
                         </button>
                     )}
 
                     {isListening && (
-                        <button 
-                            className="btn-secondary w-full text-lg py-4"
-                            disabled
-                        >
+                        <button className="btn-secondary w-full text-lg py-4" disabled>
                             Listening & Recording...
                         </button>
                     )}
@@ -111,20 +99,14 @@ const App: React.FC = () => {
                     {audioURL && !isListening && (
                         <div className="flex flex-col items-center space-y-2">
                             <audio controls src={audioURL} className="w-full" />
-                            <button 
-                                className="btn-primary w-full text-lg py-2"
-                                onClick={handleTranscribe}
-                            >
+                            <button className="btn-primary w-full text-lg py-2" onClick={handleTranscribe}>
                                 Transcribe Audio
                             </button>
                         </div>
                     )}
 
                     {!isListening && status !== 'Ready to protect' && (
-                        <button 
-                            className="btn-primary w-full text-lg py-4"
-                            onClick={handleReset}
-                        >
+                        <button className="btn-primary w-full text-lg py-4" onClick={handleReset}>
                             Start New Scan
                         </button>
                     )}
@@ -141,12 +123,6 @@ const App: React.FC = () => {
                 <div className="mt-8 p-4 bg-orange-50 rounded-xl border border-orange-200">
                     <p className="text-sm text-gray-600">
                         <span className="font-semibold text-secondary">Status:</span> {status}
-                    </p>
-                </div>
-
-                <div className="mt-8 p-4 bg-orange-50 rounded-xl border border-orange-200">
-                    <p className="text-sm text-gray-600">
-                        <span className="font-semibold text-secondary">Protect yourself</span> from phone scams with AI-powered detection
                     </p>
                 </div>
             </div>

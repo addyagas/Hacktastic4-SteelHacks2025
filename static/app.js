@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const threatScore = document.getElementById('threatScore');
     const threatDescription = document.getElementById('threatDescription');
     const keywordsList = document.getElementById('keywordsList');
+    const aiSummary = document.getElementById('aiSummary');
     
     // Variables
     let socket;
@@ -45,16 +46,20 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         socket.on('transcription_started', (data) => {
+            isRecording = true;
             status.textContent = 'Transcription started';
             startButton.disabled = true;
             stopButton.disabled = false;
             // Reset threat displays
             resetThreatDisplay();
+            // Clear previous transcripts
+            finalTranscription.innerHTML = '';
+            interimTranscription.textContent = '';
         });
         
         socket.on('transcription_stopped', (data) => {
-            status.textContent = 'Transcription stopped';
-            startButton.disabled = false;
+            status.textContent = 'Analyzing transcription...';
+            startButton.disabled = true; // Keep disabled until analysis is complete
             stopButton.disabled = true;
         });
         
@@ -91,7 +96,9 @@ document.addEventListener('DOMContentLoaded', function() {
         
         socket.on('transcription_end', (data) => {
             console.log('Transcription ended:', data);
-            status.textContent = 'Transcription ended';
+            status.textContent = 'Analysis complete - Ready to start a new session';
+            startButton.disabled = false; // Re-enable the start button
+            stopButton.disabled = true;
             
             // Display final threat analysis if available
             if (data.final_threat_analysis) {
@@ -99,7 +106,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Show a summary alert if risk level is medium or high
                 if (['medium', 'high'].includes(data.final_threat_analysis.risk_level)) {
-                    alert(`⚠️ SCAM WARNING: This call has been identified as a ${data.final_threat_analysis.risk_level} risk scam.\n\n${data.final_threat_analysis.description}`);
+                    alert(`⚠️ SCAM WARNING: This call has been identified as a ${data.final_threat_analysis.risk_level} risk scam.\n\n${data.final_threat_analysis.ai_summary || data.final_threat_analysis.description}`);
                 }
             }
         });
@@ -127,6 +134,7 @@ document.addEventListener('DOMContentLoaded', function() {
         threatScore.textContent = '0%';
         threatDescription.textContent = 'No threats detected yet';
         keywordsList.textContent = 'None detected';
+        aiSummary.textContent = 'AI analysis will be available after stopping transcription';
         detectedKeywords.clear();
     }
     
@@ -146,6 +154,19 @@ document.addEventListener('DOMContentLoaded', function() {
         // Update description
         if (analysis.description) {
             threatDescription.textContent = analysis.description;
+        }
+        
+        // Update AI summary
+        if (analysis.ai_summary) {
+            aiSummary.textContent = analysis.ai_summary;
+            aiSummary.style.fontWeight = 'bold';
+            // Add a visual indicator that analysis is complete
+            aiSummary.classList.add('analysis-complete');
+        } else if (isRecording) {
+            // During active recording, show the waiting message
+            aiSummary.textContent = 'AI analysis will be available after stopping transcription';
+            aiSummary.style.fontWeight = 'normal';
+            aiSummary.classList.remove('analysis-complete');
         }
         
         // Update keywords list
@@ -256,6 +277,11 @@ document.addEventListener('DOMContentLoaded', function() {
         isRecording = true;
         status.textContent = 'Recording and transcribing...';
         console.log('Started recording');
+        
+        // Reset the UI for a new session
+        finalTranscription.innerHTML = ''; // Clear previous transcripts
+        interimTranscription.textContent = '';
+        resetThreatDisplay();
     }
     
     // Stop transcription
@@ -267,9 +293,9 @@ document.addEventListener('DOMContentLoaded', function() {
             socket.emit('stop_transcription');
         }
         
-        // Reset UI
-        status.textContent = 'Stopped';
-        startButton.disabled = false;
+        // Update UI
+        status.textContent = 'Analyzing transcription...';
+        startButton.disabled = true; // Will be enabled after analysis is complete
         stopButton.disabled = true;
         
         // Close audio resources

@@ -14,7 +14,7 @@ from flask_socketio import SocketIO, emit
 from live_transcript_analyzer import TranscriptAnalyzer
 
 # --- Configuration ---
-YOUR_API_KEY = "e8f7002b0f854a4dbb208d297e29aa74"  # Replace with your actual API key
+YOUR_API_KEY = "e8f7002b0f854a4dbb208d297e29aa74" 
 
 CONNECTION_PARAMS = {
     "sample_rate": 16000,
@@ -99,6 +99,7 @@ class TranscriptionSession:
                             'risk_level': analysis_result.get('scamAnalysis', {}).get('riskLevel', 'unknown'),
                             'score_percentage': analysis_result.get('scamAnalysis', {}).get('percentageScore', 0),
                             'description': analysis_result.get('scamAnalysis', {}).get('description', '')
+                            # AI summary will be sent only when the session ends
                         }
                     }, room=self.client_id)
                 else:
@@ -128,21 +129,40 @@ class TranscriptionSession:
                 print(f"\nSession Terminated for client {self.client_id}: "
                       f"Audio Duration={audio_duration}s, Session Duration={session_duration}s")
                 
-                # Get final threat analysis
-                final_analysis = self.analyzer.get_final_analysis()
-                
-                # Notify client of session termination with final analysis
-                socketio.emit('transcription_end', {
-                    'audio_duration': audio_duration,
-                    'session_duration': session_duration,
-                    'final_threat_analysis': {
-                        'found_keywords': final_analysis.get('foundKeywords', []),
-                        'risk_level': final_analysis.get('scamAnalysis', {}).get('riskLevel', 'unknown'),
-                        'score_percentage': final_analysis.get('scamAnalysis', {}).get('percentageScore', 0),
-                        'description': final_analysis.get('scamAnalysis', {}).get('description', ''),
-                        'matches': final_analysis.get('scamAnalysis', {}).get('matches', [])
-                    }
-                }, room=self.client_id)
+                # Get final threat analysis if there's any transcript
+                if self.analyzer.current_transcript.strip():
+                    # Get final analysis
+                    final_analysis = self.analyzer.get_final_analysis()
+                    
+                    # Generate the AI summary for the final analysis
+                    from constants import generate_scam_summary
+                    ai_summary = generate_scam_summary(
+                        final_analysis.get('scamAnalysis', {}).get('matches', []),
+                        final_analysis.get('foundKeywords', []),
+                        final_analysis.get('scamAnalysis', {}).get('riskLevel', 'minimal'),
+                        final_analysis.get('transcript', '')
+                    )
+                    
+                    # Notify client of session termination with final analysis
+                    socketio.emit('transcription_end', {
+                        'audio_duration': audio_duration,
+                        'session_duration': session_duration,
+                        'final_threat_analysis': {
+                            'found_keywords': final_analysis.get('foundKeywords', []),
+                            'risk_level': final_analysis.get('scamAnalysis', {}).get('riskLevel', 'unknown'),
+                            'score_percentage': final_analysis.get('scamAnalysis', {}).get('percentageScore', 0),
+                            'description': final_analysis.get('scamAnalysis', {}).get('description', ''),
+                            'matches': final_analysis.get('scamAnalysis', {}).get('matches', []),
+                            'ai_summary': ai_summary
+                        }
+                    }, room=self.client_id)
+                else:
+                    # No transcript to analyze
+                    socketio.emit('transcription_end', {
+                        'audio_duration': audio_duration,
+                        'session_duration': session_duration,
+                        'final_threat_analysis': None
+                    }, room=self.client_id)
                 
         except json.JSONDecodeError as e:
             print(f"Error decoding message for client {self.client_id}: {e}")
@@ -265,13 +285,25 @@ def handle_start_transcription():
     client_id = request.sid
     print(f"Starting transcription for client: {client_id}")
     
-    # Create a new session if it doesn't exist
+    # If a session already exists, stop it before creating a new one
+    if client_id in client_sessions:
+        client_sessions[client_id].stop()
+        # Don't delete the session yet, we'll reuse it
+    
+    # Create a new session or reset the existing one
     if client_id not in client_sessions:
         client_sessions[client_id] = TranscriptionSession(client_id)
-        client_sessions[client_id].start()
-        emit('transcription_started', {'status': 'started'})
     else:
-        emit('transcription_error', {'error': 'Session already exists'})
+        # Reset the analyzer to start fresh
+        client_sessions[client_id].analyzer.reset()
+        # Reset other necessary components
+        client_sessions[client_id].ws_app = None
+        client_sessions[client_id].ws_thread = None
+        client_sessions[client_id].stop_event = threading.Event()
+        client_sessions[client_id].connected = False
+        
+    client_sessions[client_id].start()
+    emit('transcription_started', {'status': 'started'})
 
 @socketio.on('stop_transcription')
 def handle_stop_transcription():
@@ -281,7 +313,7 @@ def handle_stop_transcription():
     
     if client_id in client_sessions:
         client_sessions[client_id].stop()
-        del client_sessions[client_id]
+        # Don't delete the session, so it can be restarted
         emit('transcription_stopped', {'status': 'stopped'})
     else:
         emit('transcription_error', {'error': 'No active session'})
@@ -334,8 +366,8 @@ def create_frontend_files():
         <h1>Scam Call Detector</h1>
         
         <div class="controls">
-            <button id="startButton" class="button">Start Transcription</button>
-            <button id="stopButton" class="button" disabled>Stop Transcription</button>
+            <button id="startButton" class="button">Start New Session</button>
+            <button id="stopButton" class="button" disabled>Stop & Analyze</button>
         </div>
         
         <div class="status-container">
@@ -353,6 +385,10 @@ def create_frontend_files():
                 <div id="threatScore" class="score">0%</div>
             </div>
             <div class="threat-description" id="threatDescription">No threats detected yet</div>
+            <div class="ai-summary-container">
+                <h3>AI Analysis:</h3>
+                <div id="aiSummary" class="ai-summary">AI analysis will be available after stopping transcription</div>
+            </div>
         </div>
         
         <div class="keywords-container">
@@ -513,6 +549,29 @@ h3 {
     font-style: italic;
 }
 
+.ai-summary-container {
+    margin-top: 15px;
+    border-top: 1px solid #ddd;
+    padding-top: 15px;
+}
+
+.ai-summary {
+    padding: 15px;
+    background-color: #e8f5e9;
+    border-radius: 4px;
+    border-left: 4px solid #4CAF50;
+    font-size: 14px;
+    line-height: 1.6;
+    margin-top: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+}
+
+.ai-summary.analysis-complete {
+    background-color: #e3f2fd;
+    border-left-color: #2196F3;
+}
+
 .keywords-container {
     background-color: #f9f9f9;
     border: 1px solid #ddd;
@@ -588,6 +647,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const threatScore = document.getElementById('threatScore');
     const threatDescription = document.getElementById('threatDescription');
     const keywordsList = document.getElementById('keywordsList');
+    const aiSummary = document.getElementById('aiSummary');
     
     // Variables
     let socket;
@@ -622,16 +682,20 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         socket.on('transcription_started', (data) => {
+            isRecording = true;
             status.textContent = 'Transcription started';
             startButton.disabled = true;
             stopButton.disabled = false;
             // Reset threat displays
             resetThreatDisplay();
+            // Clear previous transcripts
+            finalTranscription.innerHTML = '';
+            interimTranscription.textContent = '';
         });
         
         socket.on('transcription_stopped', (data) => {
-            status.textContent = 'Transcription stopped';
-            startButton.disabled = false;
+            status.textContent = 'Analyzing transcription...';
+            startButton.disabled = true; // Keep disabled until analysis is complete
             stopButton.disabled = true;
         });
         
@@ -668,7 +732,9 @@ document.addEventListener('DOMContentLoaded', function() {
         
         socket.on('transcription_end', (data) => {
             console.log('Transcription ended:', data);
-            status.textContent = 'Transcription ended';
+            status.textContent = 'Analysis complete - Ready to start a new session';
+            startButton.disabled = false; // Re-enable the start button
+            stopButton.disabled = true;
             
             // Display final threat analysis if available
             if (data.final_threat_analysis) {
@@ -676,7 +742,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Show a summary alert if risk level is medium or high
                 if (['medium', 'high'].includes(data.final_threat_analysis.risk_level)) {
-                    alert(`⚠️ SCAM WARNING: This call has been identified as a ${data.final_threat_analysis.risk_level} risk scam.\\n\\n${data.final_threat_analysis.description}`);
+                    alert(`⚠️ SCAM WARNING: This call has been identified as a ${data.final_threat_analysis.risk_level} risk scam.\\n\\n${data.final_threat_analysis.ai_summary || data.final_threat_analysis.description}`);
                 }
             }
         });
@@ -704,6 +770,7 @@ document.addEventListener('DOMContentLoaded', function() {
         threatScore.textContent = '0%';
         threatDescription.textContent = 'No threats detected yet';
         keywordsList.textContent = 'None detected';
+        aiSummary.textContent = 'AI analysis will be available after stopping transcription';
         detectedKeywords.clear();
     }
     
@@ -723,6 +790,19 @@ document.addEventListener('DOMContentLoaded', function() {
         // Update description
         if (analysis.description) {
             threatDescription.textContent = analysis.description;
+        }
+        
+        // Update AI summary
+        if (analysis.ai_summary) {
+            aiSummary.textContent = analysis.ai_summary;
+            aiSummary.style.fontWeight = 'bold';
+            // Add a visual indicator that analysis is complete
+            aiSummary.classList.add('analysis-complete');
+        } else if (isRecording) {
+            // During active recording, show the waiting message
+            aiSummary.textContent = 'AI analysis will be available after stopping transcription';
+            aiSummary.style.fontWeight = 'normal';
+            aiSummary.classList.remove('analysis-complete');
         }
         
         // Update keywords list
@@ -833,6 +913,11 @@ document.addEventListener('DOMContentLoaded', function() {
         isRecording = true;
         status.textContent = 'Recording and transcribing...';
         console.log('Started recording');
+        
+        // Reset the UI for a new session
+        finalTranscription.innerHTML = ''; // Clear previous transcripts
+        interimTranscription.textContent = '';
+        resetThreatDisplay();
     }
     
     // Stop transcription
@@ -844,9 +929,9 @@ document.addEventListener('DOMContentLoaded', function() {
             socket.emit('stop_transcription');
         }
         
-        // Reset UI
-        status.textContent = 'Stopped';
-        startButton.disabled = false;
+        // Update UI
+        status.textContent = 'Analyzing transcription...';
+        startButton.disabled = true; // Will be enabled after analysis is complete
         stopButton.disabled = true;
         
         // Close audio resources

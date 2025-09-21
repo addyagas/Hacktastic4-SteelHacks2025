@@ -1,5 +1,5 @@
 import re
-from constants import THREAT_KEYWORDS
+from constants import THREAT_KEYWORDS, generate_scam_summary
 from rules import calculate_scam_score
 
 class TranscriptAnalyzer:
@@ -21,6 +21,8 @@ class TranscriptAnalyzer:
         self.found_keywords = set()
         # Store the latest scam score analysis
         self.latest_analysis = None
+        # Store the latest AI summary
+        self.latest_summary = None
 
     def update_transcript(self, new_text):
         """
@@ -55,13 +57,22 @@ class TranscriptAnalyzer:
         # Calculate the scam score using the rules
         scam_analysis = calculate_scam_score(text)
         
+        # Generate an AI summary of why this might be a scam
+        summary = generate_scam_summary(
+            scam_analysis.get("matches", []),
+            found_keywords,
+            scam_analysis.get("riskLevel", "minimal"),
+            text
+        )
+        
         # Return the analysis results
         return {
             "foundKeywords": found_keywords,
             "keywordCount": len(found_keywords),
             "newlyFoundKeywords": found_keywords,
             "scamAnalysis": scam_analysis,
-            "transcript": text
+            "transcript": text,
+            "aiSummary": summary
         }
     
     def analyze_current_transcript(self):
@@ -82,13 +93,22 @@ class TranscriptAnalyzer:
         # Calculate the scam score using the rules
         self.latest_analysis = calculate_scam_score(self.current_transcript)
         
+        # Generate an AI summary of why this might be a scam
+        self.latest_summary = generate_scam_summary(
+            self.latest_analysis.get("matches", []),
+            list(self.found_keywords),
+            self.latest_analysis.get("riskLevel", "minimal"),
+            self.current_transcript
+        )
+        
         # Return the analysis results
         return {
             "foundKeywords": list(self.found_keywords),
             "keywordCount": len(self.found_keywords),
             "newlyFoundKeywords": found_keywords,
             "scamAnalysis": self.latest_analysis,
-            "transcript": self.current_transcript
+            "transcript": self.current_transcript,
+            "aiSummary": self.latest_summary
         }
     
     def get_final_analysis(self):
@@ -103,7 +123,8 @@ class TranscriptAnalyzer:
             "keywordCount": len(self.found_keywords),
             "newlyFoundKeywords": [],
             "scamAnalysis": self.latest_analysis,
-            "transcript": self.current_transcript
+            "transcript": self.current_transcript,
+            "aiSummary": self.latest_summary
         }
     
     def reset(self):
@@ -147,6 +168,8 @@ def demo_live_transcript():
     print("Analysis complete.")
     print(f"Final risk assessment: {result['scamAnalysis']['riskLevel']} ({result['scamAnalysis']['percentageScore']}%)")
     print(f"All threat keywords found: {', '.join(result['foundKeywords'])}")
+    print("\n🤖 AI Summary:")
+    print(result['aiSummary'])
 
 
 if __name__ == "__main__":

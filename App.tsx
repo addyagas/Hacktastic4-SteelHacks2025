@@ -52,14 +52,10 @@ const App: React.FC = () => {
   const notifIntervalRef = useRef<number | null>(null);
   const autoStopTimeoutRef = useRef<number | null>(null);
 
-  const hasNotifications = notifications.length > 0;
-
-  // Auto-scroll on new notification
   useEffect(() => {
     containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   }, [notifications]);
 
-  // Cleanup on unmount
   useEffect(() => () => stopMonitoring('Ready to protect'), []);
 
   const startIntervals = () => {
@@ -69,7 +65,7 @@ const App: React.FC = () => {
       setNotifications(prev => [
         {
           id: Date.now(),
-          message: `⚠️ ${lvl.toUpperCase()} threat detected at ${new Date().toLocaleTimeString()}`,
+          message: `${lvl.toUpperCase()} threat: 123456789`,
           level: lvl,
         },
         ...prev,
@@ -79,12 +75,14 @@ const App: React.FC = () => {
   };
 
   const clearTimers = () => {
-    [notifIntervalRef, autoStopTimeoutRef].forEach(ref => {
-      if (ref.current !== null) {
-        clearTimeout(ref.current);
-        ref.current = null;
-      }
-    });
+    if (notifIntervalRef.current !== null) {
+      window.clearInterval(notifIntervalRef.current);
+      notifIntervalRef.current = null;
+    }
+    if (autoStopTimeoutRef.current !== null) {
+      window.clearTimeout(autoStopTimeoutRef.current);
+      autoStopTimeoutRef.current = null;
+    }
   };
 
   const stopMonitoring = (finalStatus?: string) => {
@@ -114,27 +112,20 @@ const App: React.FC = () => {
   const toggleListening = () =>
     isListening ? stopMonitoring('Ready to protect') : startMonitoring();
 
-  const notificationsStyle: React.CSSProperties = {
-    width: hasNotifications ? '50%' : '0px',
-    opacity: hasNotifications ? 1 : 0,
-    transition: 'width 500ms ease, opacity 400ms ease',
-    overflowY: 'auto',
-    paddingLeft: '10px',
-    maxHeight: '300px',
-  };
-
-  const gaugeStyle: React.CSSProperties = {
-    width: hasNotifications ? '50%' : '100%',
-    transition: 'width 500ms ease',
-    display: 'flex',
-    justifyContent: 'center',
-  };
-
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center pt-16 px-4 relative pb-32 overflow-hidden">
+    <div
+      className="min-h-screen bg-gray-900 text-white flex flex-col pt-4 px-4 relative pb-32 overflow-hidden"
+      style={{ fontFamily: "'Share Tech Mono', monospace" }}
+    >
       <style>
         {`
-          html, body { overflow: hidden; height: 100%; }
+          @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c&family=Noto+Sans:ital,wght@0,100..900;1,100..900&family=Reggae+One&family=Stick&display=swap');
+
+          html, body { 
+            overflow: hidden; 
+            height: 100%; 
+            font-family: 'Share Tech Mono', monospace; 
+          }
           @keyframes slideInLeft {
             from { transform: translateX(-20px); opacity: 0; }
             to   { transform: translateX(0);     opacity: 1; }
@@ -144,11 +135,11 @@ const App: React.FC = () => {
         `}
       </style>
 
-      {/* Header */}
-      <div className="mb-8 text-center">
-        <div className="w-28 h-28 bg-gradient-to-r from-cyan-500 to-blue-700 rounded-full flex items-center justify-center mx-auto mb-3 shadow-lg">
+      {/* Header: top-left */}
+      <header className="absolute top-4 left-4 flex items-center space-x-4 z-20">
+        <div className="w-16 h-16 bg-gradient-to-r from-cyan-500 to-blue-700 rounded-full flex items-center justify-center shadow-lg">
           <svg
-            className={`w-16 h-16 text-white ${isListening ? 'animate-pulse' : ''}`}
+            className={`w-10 h-10 text-white ${isListening ? 'animate-pulse' : ''}`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -156,91 +147,94 @@ const App: React.FC = () => {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2l9 4-3 10a9 9 0 01-12 0L3 6l9-4z" />
           </svg>
         </div>
-        <h1 className="text-4xl font-bold tracking-wide">Cyber Sentinel</h1>
-        <p className="text-lg text-gray-400">Real-Time Threat Intelligence</p>
-        <div className="mt-4 text-sm">
-          <span className="px-3 py-1 rounded-full bg-gray-800 border border-gray-700 text-cyan-300">
+        <div>
+          <h1 className="text-2xl font-bold tracking-wide">Cyber Sentinel</h1>
+          <p className="text-sm text-gray-400">Real-Time Threat Intelligence</p>
+          <span className="mt-1 inline-block px-3 py-1 rounded-full bg-gray-800 border border-gray-700 text-cyan-300 text-xs">
             {status}
           </span>
         </div>
-      </div>
+      </header>
 
-      {/* Main */}
-      <div
-        className="w-full max-w-5xl items-start mt-4 relative"
-        style={{
-          top: '-10px',
-          display: 'flex',
-          flexDirection: 'row',
-          gap: hasNotifications ? '2rem' : '0',
-          transition: 'gap 300ms ease',
-        }}
-      >
-        {/* Notifications */}
-        <div
-          ref={containerRef}
-          className="scroll-container flex flex-col space-y-2 pr-2"
-          style={notificationsStyle}
-        >
-          {notifications.map(n => (
-            <div
-              key={n.id}
-              className="notification-item p-3 rounded-lg shadow transition-opacity duration-500 border"
-              style={{
-                backgroundColor: '#1F2937',
-                color: threatColors[n.level],
-                borderColor: threatColors[n.level],
-              }}
-            >
-              {n.message}
-            </div>
-          ))}
-        </div>
-
-        {/* Gauge */}
-        <div style={gaugeStyle} className="overflow-visible">
-          <svg viewBox="0 0 240 140" className="w-full max-w-sm overflow-visible">
+      {/* Gauge: absolute top-center */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
+        <svg viewBox="0 0 240 140" className="w-[380px] max-w-[90vw] overflow-visible">
+          <path
+            d="M 40 120 A 80 80 0 0 1 200 120"
+            fill="none"
+            stroke="#374151"
+            strokeWidth="20"
+            strokeLinecap="round"
+          />
+          <path
+            d="M 40 120 A 80 80 0 0 1 200 120"
+            fill="none"
+            stroke={threatScore === 0 ? 'transparent' : getGaugeColor(threatScore)}
+            strokeWidth="20"
+            strokeLinecap="round"
+            strokeDasharray="251"
+            strokeDashoffset={251 - (threatScore / 100) * 251}
+            style={{ transition: 'stroke 0.5s, stroke-dashoffset 0.5s' }}
+          />
+          <circle cx="120" cy="120" r="35" fill="#111827" stroke="#4B5563" strokeWidth="2" />
+          <svg x="100" y="100" width="40" height="40" viewBox="0 0 24 24">
             <path
-              d="M 40 120 A 80 80 0 0 1 200 120"
-              fill="none"
-              stroke="#374151"
-              strokeWidth="20"
-              strokeLinecap="round"
+              fill={getGaugeColor(threatScore)}
+              d="M12 2l9 4-3 10a9 9 0 01-12 0L3 6l9-4z"
             />
-            <path
-              d="M 40 120 A 80 80 0 0 1 200 120"
-              fill="none"
-              stroke={threatScore === 0 ? 'transparent' : getGaugeColor(threatScore)}
-              strokeWidth="20"
-              strokeLinecap="round"
-              strokeDasharray="251"
-              strokeDashoffset={251 - (threatScore / 100) * 251}
-              style={{ transition: 'stroke 0.5s, stroke-dashoffset 0.5s' }}
-            />
-            <circle cx="120" cy="120" r="35" fill="#111827" stroke="#4B5563" strokeWidth="2" />
-            <svg x="100" y="100" width="40" height="40" viewBox="0 0 24 24">
-              <path
-                fill={getGaugeColor(threatScore)}
-                d="M12 2l9 4-3 10a9 9 0 01-12 0L3 6l9-4z"
-              />
-            </svg>
-            <text
-              x="120"
-              y="128"
-              textAnchor="middle"
-              fontSize="24"
-              fill="#00FFFF"
-              fontWeight="bold"
-              style={{ textShadow: '0 0 4px #00FFFF' }}
-            >
-              {threatScore}%
-            </text>
           </svg>
+          <text
+            x="120"
+            y="128"
+            textAnchor="middle"
+            fontSize="24"
+            fill="#00FFFF"
+            fontWeight="bold"
+            style={{ textShadow: '0 0 4px #00FFFF' }}
+          >
+            {threatScore}%
+          </text>
+        </svg>
+      </div>
+
+      {/* Main content wrapper (adds top space so content sits below the gauge) */}
+      <div className="w-full mt-40">
+        <div className="flex flex-row w-full h-full">
+          {/* Notifications: lower and less tall */}
+          <div
+            ref={containerRef}
+            className="scroll-container flex flex-col space-y-2 pr-2"
+            style={{
+              width: '26%',
+              maxWidth: '300px',
+              overflowY: 'auto',
+              paddingLeft: '0px',
+              marginTop: '0px',
+              maxHeight: '500px',
+            }}
+          >
+            {notifications.map(n => (
+              <div
+                key={n.id}
+                className="notification-item p-3 rounded-lg shadow border"
+                style={{
+                  backgroundColor: '#1F2937',
+                  color: threatColors[n.level],
+                  borderColor: threatColors[n.level],
+                }}
+              >
+                {n.message}
+              </div>
+            ))}
+          </div>
+
+          {/* Right spacer to keep layout balanced under the centered gauge */}
+          <div className="flex-1" />
         </div>
       </div>
 
-      {/* Toggle Button */}
-      <div className="fixed bottom-8">
+      {/* Toggle button */}
+      <div className="fixed bottom-8 left-1/2 -translate-x-1/2">
         <button
           onClick={toggleListening}
           className={`${

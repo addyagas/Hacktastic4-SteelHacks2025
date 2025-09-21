@@ -1,0 +1,65 @@
+@import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c&family=Noto+Sans:ital,wght@0,100..900;1,100..900&family=Reggae+One&family=Stick&display=swap');
+
+html, body {
+  overflow: hidden;
+  height: 100%;
+  font-family: 'Share Tech Mono', monospace;
+}
+
+@keyframes slideInLeft {
+  from { transform: translateX(-20px); opacity: 0; }
+  to   { transform: translateX(0);     opacity: 1; }
+}
+
+.notification-item {
+  animation: slideInLeft 0.4s ease-out;
+}
+
+.scroll-container::-webkit-scrollbar {
+  display: none;
+}
+
+.interim-transcription {
+    color: #888;
+    font-style: italic;
+    margin-bottom: 10px;
+    min-height: 20px;
+}
+
+.final-transcription {
+    color: #333;
+    font-weight: 500;
+}
+
+/* Low Risk */
+.risk-low {
+  background-color: rgba(114, 93, 239, 0.2); /* translucent purple */
+  color: #725def;
+  padding: 4px 4px;
+  border-radius: 6px;
+  margin: 2px;
+  display: inline-block;
+  font-weight: 500;
+}
+
+/* Medium Risk */
+.risk-medium {
+  background-color: rgba(255, 176, 13, 0.2); /* translucent amber */
+  color: #ffb00d;
+  padding: 4px 4px;
+  border-radius: 6px;
+  margin: 2px;
+  display: inline-block;
+  font-weight: 500;
+}
+
+/* High Risk */
+.risk-high {
+  background-color: rgba(221, 33, 125, 0.2); /* translucent pink-red */
+  color: #dd217d;
+  padding: 4px 4px;
+  border-radius: 6px;
+  margin: 2px;
+  display: inline-block;
+  font-weight: 500;
+}

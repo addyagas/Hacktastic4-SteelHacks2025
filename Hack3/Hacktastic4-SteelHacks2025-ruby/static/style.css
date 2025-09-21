@@ -168,11 +168,11 @@ h2 {
 /* Transcript container for dynamic positioning */
 .transcript-container {
   position: absolute;
-  top: 50%;
+  top: 60%; /* Moved down from 50% to avoid overlapping with gauge */
   left: 50%;
   transform: translate(-50%, -50%);
   width: min(650px, 90vw);
-  max-height: min(320px, 50vh);
+  max-height: min(280px, 40vh); /* Reduced max-height to fit better */
   z-index: 10;
   transition: all 0.3s ease;
   border: 1px solid rgba(75, 85, 99, 0.5);
@@ -180,6 +180,8 @@ h2 {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   -ms-overflow-style: none; /* IE and Edge */
   scrollbar-width: none; /* Firefox */
+  /* Add minimum top margin to ensure it never goes above gauge */
+  margin-top: 60px;
 }
 
 .transcript-container::-webkit-scrollbar {
@@ -189,14 +191,17 @@ h2 {
 /* Media queries for better responsiveness on different devices */
 @media (max-height: 700px) {
   .transcript-container {
-    max-height: 250px;
+    max-height: 220px;
+    top: 65%; /* Move down more on smaller screens */
   }
 }
 
 @media (max-height: 500px) {
   .transcript-container {
-    max-height: 200px;
+    max-height: 180px;
+    top: 70%; /* Move down even more on very small screens */
     padding: 12px !important;
+    margin-top: 40px; /* Reduce margin on small screens */
   }
 }
 

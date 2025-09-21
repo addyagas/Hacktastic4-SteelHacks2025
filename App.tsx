@@ -1,74 +1,28 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 
 const App: React.FC = () => {
-
-    const [isListening, setIsListening] = useState(false);
     const [status, setStatus] = useState('Ready to protect');
-    const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
-    const [audioURL, setAudioURL] = useState<string | null>(null);
-    const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
-    const [transcript, setTranscript] = useState<string | null>(null);
-    const audioChunks = useRef<Blob[]>([]);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [threatLevel, setThreatLevel] = useState<'safe' | 'warning' | 'danger' | null>(null);
 
-
-    const handleStartMonitoring = () => {
-        setTranscript(null);
-        setAudioURL(null);
-        setAudioBlob(null);
-        audioChunks.current = [];
-        setStatus('Requesting microphone access...');
-        navigator.mediaDevices.getUserMedia({ audio: true })
-            .then((stream) => {
-                const recorder = new MediaRecorder(stream);
-                setMediaRecorder(recorder);
-                setIsListening(true);
-                setStatus('Listening for threats...');
-
-                recorder.ondataavailable = (e) => {
-                    if (e.data.size > 0) {
-                        audioChunks.current.push(e.data);
-                    }
-                };
-
-                recorder.onstop = () => {
-                    const blob = new Blob(audioChunks.current, { type: 'audio/webm' });
-                    setAudioBlob(blob);
-                    setAudioURL(URL.createObjectURL(blob));
-                    setStatus('Recording complete. Ready to transcribe.');
-                    setIsListening(false);
-                };
-
-                recorder.start();
-
-                // Stop after 10 seconds for demo
-                setTimeout(() => {
-                    recorder.stop();
-                }, 10000);
-            })
-            .catch(() => {
-                setStatus('Microphone access required');
-            });
+    const handleAnalyze = () => {
+        setIsAnalyzing(true);
+        setStatus('Analyzing potential threats...');
+        
+        // Simulated analysis - replace with actual analysis logic
+        setTimeout(() => {
+            const levels = ['safe', 'warning', 'danger'] as const;
+            const result = levels[Math.floor(Math.random() * levels.length)];
+            setThreatLevel(result);
+            setStatus('Analysis complete');
+            setIsAnalyzing(false);
+        }, 2000);
     };
-
 
     const handleReset = () => {
-        setIsListening(false);
+        setIsAnalyzing(false);
         setStatus('Ready to protect');
-        setAudioURL(null);
-        setAudioBlob(null);
-        setTranscript(null);
-    };
-
-    // Placeholder for sending audio to Whisper API
-    const handleTranscribe = async () => {
-        if (!audioBlob) return;
-        setStatus('Transcribing...');
-        // TODO: Implement backend call to OpenAI Whisper API
-        // For now, just simulate
-        setTimeout(() => {
-            setTranscript('(Transcript would appear here)');
-            setStatus('Transcription complete.');
-        }, 2000);
+        setThreatLevel(null);
     };
 
     return (
@@ -85,53 +39,49 @@ const App: React.FC = () => {
                 </div>
 
                 <div className="space-y-4">
-                    {!isListening && status === 'Ready to protect' && (
+                    {!isAnalyzing && (
                         <button 
                             className="btn-primary w-full text-lg py-4"
-                            onClick={handleStartMonitoring}
+                            onClick={handleAnalyze}
                         >
-                            Start Monitoring (Record Audio)
+                            Analyze Potential Threats
                         </button>
                     )}
 
-                    {isListening && (
+                    {isAnalyzing && (
                         <button 
                             className="btn-secondary w-full text-lg py-4"
                             disabled
                         >
-                            Listening & Recording...
+                            Analyzing...
                         </button>
                     )}
 
-                    {audioURL && !isListening && (
-                        <div className="flex flex-col items-center space-y-2">
-                            <audio controls src={audioURL} className="w-full" />
+                    {threatLevel && !isAnalyzing && (
+                        <div className={`mt-6 p-4 rounded-xl border ${
+                            threatLevel === 'safe' ? 'bg-green-50 border-green-200' :
+                            threatLevel === 'warning' ? 'bg-yellow-50 border-yellow-200' :
+                            'bg-red-50 border-red-200'
+                        }`}>
+                            <p className="text-lg font-semibold mb-2">
+                                {threatLevel === 'safe' ? '✅ Safe' :
+                                 threatLevel === 'warning' ? '⚠️ Warning' :
+                                 '❌ Danger'}
+                            </p>
+                            <p className="text-sm text-gray-600">
+                                {threatLevel === 'safe' ? 'No threats detected' :
+                                 threatLevel === 'warning' ? 'Potential scam detected' :
+                                 'High risk of scam detected'}
+                            </p>
                             <button 
-                                className="btn-primary w-full text-lg py-2"
-                                onClick={handleTranscribe}
+                                className="btn-primary w-full text-lg py-2 mt-4"
+                                onClick={handleReset}
                             >
-                                Transcribe Audio
+                                Start New Analysis
                             </button>
                         </div>
                     )}
-
-                    {!isListening && status !== 'Ready to protect' && (
-                        <button 
-                            className="btn-primary w-full text-lg py-4"
-                            onClick={handleReset}
-                        >
-                            Start New Scan
-                        </button>
-                    )}
                 </div>
-
-                {transcript && (
-                    <div className="mt-8 p-4 bg-green-50 rounded-xl border border-green-200">
-                        <p className="text-sm text-gray-800">
-                            <span className="font-semibold text-green-700">Transcript:</span> {transcript}
-                        </p>
-                    </div>
-                )}
 
                 <div className="mt-8 p-4 bg-orange-50 rounded-xl border border-orange-200">
                     <p className="text-sm text-gray-600">

@@ -6,9 +6,83 @@
   <title>VishNet - Voice Threat Detection</title>
   <meta name="description" content="Real-time voice threat detection and analysis system">
   <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/modal.css" />
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="min-h-screen bg-gray-900 text-white flex flex-col pt-4 px-4 relative pb-32 overflow-hidden" role="main">
+  <!-- Welcome Modal -->
+  <div id="welcomeModal" class="modal-overlay active" role="dialog" aria-labelledby="modal-title" aria-modal="true">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h2 id="modal-title" class="modal-title">Welcome to VishNet</h2>
+        <button id="closeModal" class="modal-close" aria-label="Close welcome instructions">×</button>
+      </div>
+      <div class="modal-content">
+        <div class="modal-section">
+          <p>VishNet is a real-time voice threat detection system designed to identify potential scams, phishing attempts, and social engineering tactics in verbal communications.</p>
+        </div>
+        
+        <div class="modal-section">
+          <h3 class="modal-section-title">How It Works</h3>
+          <ul class="feature-list">
+            <li class="feature-item">
+              <div class="feature-icon">🎤</div>
+              <div class="feature-text">Click "Start Listening" and place your phone near the speaker</div>
+            </li>
+            <li class="feature-item">
+              <div class="feature-icon">📝</div>
+              <div class="feature-text">Your speech is transcribed in real-time and displayed in the center of the screen</div>
+            </li>
+            <li class="feature-item">
+              <div class="feature-icon">🔍</div>
+              <div class="feature-text">Our AI analyzes the conversation for suspicious keywords and patterns</div>
+            </li>
+            <li class="feature-item">
+              <div class="feature-icon">⚠️</div>
+              <div class="feature-text">Potential threats are highlighted and categorized by risk level</div>
+            </li>
+            <li class="feature-item">
+              <div class="feature-icon">📊</div>
+              <div class="feature-text">The threat gauge at the top shows the overall risk level from 0-100%</div>
+            </li>
+            <li class="feature-item">
+              <div class="feature-icon">🤖</div>
+              <div class="feature-text">The AI Summary panel provides context and analysis of detected threats</div>
+            </li>
+          </ul>
+        </div>
+        
+        <div class="modal-section">
+          <h3 class="modal-section-title">Key Features</h3>
+          <ul class="feature-list">
+            <li class="feature-item">
+              <div class="feature-icon">🛡️</div>
+              <div class="feature-text"><strong>Real-time detection</strong> - Threats are identified as you speak</div>
+            </li>
+            <li class="feature-item">
+              <div class="feature-icon">🔄</div>
+              <div class="feature-text"><strong>Continuous analysis</strong> - The system adapts and updates as the conversation progresses</div>
+            </li>
+            <li class="feature-item">
+              <div class="feature-icon">📱</div>
+              <div class="feature-text"><strong>Responsive design</strong> - Works on desktop and mobile devices</div>
+            </li>
+            <li class="feature-item">
+              <div class="feature-icon">🔒</div>
+              <div class="feature-text"><strong>Privacy-focused</strong> - Keeping you and your private information safe</div>
+            </li>
+          </ul>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="startUsingApp" class="start-button">
+          <span class="start-button-icon">✨</span>
+          Start Using VishNet
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Header -->
   <header class="absolute top-4 left-4 flex items-center space-x-4 z-20" role="banner">
     <div id="statusIcon" class="w-16 h-16 bg-gradient-to-r from-cyan-500 to-blue-700 rounded-full flex items-center justify-center shadow-lg" role="img" aria-label="Cyber Sentinel Status Indicator">
@@ -80,6 +154,15 @@
       🎧 Start Listening
     </button>
   </div>
+  
+  <!-- Help Button -->
+  <div class="fixed bottom-8 right-8">
+    <button id="helpButton"
+            class="bg-gray-700 hover:bg-gray-600 focus:bg-gray-600 text-cyan-300 text-xl font-bold p-4 rounded-full shadow-lg transition duration-300 focus:outline-none focus:ring-4 focus:ring-cyan-300"
+            aria-label="Show instructions">
+      ?
+    </button>
+  </div>
 
 <!-- AI Summary Panel - Enhanced for accessibility -->
 <div class="fixed top-24 right-4 w-[320px] max-w-[90vw] bg-gray-800 bg-opacity-80 rounded-lg p-6 shadow-lg overflow-y-auto max-h-[400px] z-20">
@@ -89,8 +172,8 @@
   </div>
 </div>
 
-<!-- Transcript Area - Enhanced for accessibility -->
-<div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[650px] max-w-[90vw] bg-gray-800 bg-opacity-70 rounded-lg p-8 shadow-xl overflow-y-auto max-h-[320px]" role="main" aria-label="Transcript display">
+<!-- Transcript Area - Enhanced for accessibility and responsive positioning -->
+<div id="transcriptArea" class="transcript-container bg-gray-800 bg-opacity-70 rounded-lg p-8 shadow-xl overflow-y-auto" role="main" aria-label="Transcript display">
   <div id="interimTranscription" class="text-base text-gray-300 space-y-3 interim-transcription leading-relaxed" role="status" aria-live="polite" aria-label="Interim transcript"> </div>
   <div id="finalTranscription" class="text-lg text-gray-100 space-y-4 final-transcription leading-relaxed font-medium" role="log" aria-live="polite" aria-label="Final transcript"></div>
 </div>

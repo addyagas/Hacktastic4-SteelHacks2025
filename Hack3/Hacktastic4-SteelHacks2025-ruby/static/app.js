@@ -11,6 +11,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const percentageText       = document.getElementById('percentage');
     const micIcon              = document.getElementById('micIcon');
     const aiSummary = document.getElementById('aiSummary');
+    const transcriptArea = document.getElementById('transcriptArea');
+    
+    // Welcome Modal Elements
+    const welcomeModal = document.getElementById('welcomeModal');
+    const closeModalButton = document.getElementById('closeModal');
+    const startUsingAppButton = document.getElementById('startUsingApp');
+    const helpButton = document.getElementById('helpButton');
     
     // --- Constants & State ---
     const threatColors = {
@@ -101,6 +108,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     } else {
                         console.log('No valid score_percentage found in threat_analysis');
                     }
+                    
+                    // Re-adjust transcript area after content change
+                    adjustTranscriptArea();
                 } else {
                     interimTranscription.textContent = data.transcript;
                     
@@ -359,4 +369,90 @@ document.addEventListener('DOMContentLoaded', function() {
     toggleButton.addEventListener('click', toggleListening);
     window.addEventListener('beforeunload', () => stopMonitoring());
     updateGauge();
+    
+    // Clear any previous localStorage setting to ensure modal always shows
+    localStorage.removeItem('vishnetWelcomeShown');
+    
+    // Welcome Modal Functions
+    function closeModal() {
+      welcomeModal.classList.remove('active');
+      // Removed localStorage to make modal appear every page load
+    }
+    
+    function openModal() {
+      welcomeModal.classList.add('active');
+    }
+    
+    // Check if the welcome modal should be shown - always show it on page load
+    function checkShowWelcomeModal() {
+      // Always show the modal on page load by doing nothing here
+      // The modal starts with 'active' class in the HTML
+    }
+    
+    // Event listeners for modal
+    closeModalButton.addEventListener('click', closeModal);
+    startUsingAppButton.addEventListener('click', closeModal);
+    helpButton.addEventListener('click', openModal);
+    
+    // Allow closing the modal by clicking outside of it
+    welcomeModal.addEventListener('click', function(event) {
+      if (event.target === welcomeModal) {
+        closeModal();
+      }
+    });
+    
+    // Add keyboard accessibility - close on Escape key
+    document.addEventListener('keydown', function(event) {
+      if (event.key === 'Escape' && welcomeModal.classList.contains('active')) {
+        closeModal();
+      }
+    });
+    
+    // Function to adjust transcript area based on window size
+    function adjustTranscriptArea() {
+      // Get visible window dimensions
+      const windowHeight = window.innerHeight;
+      const windowWidth = window.innerWidth;
+      
+      // Calculate optimal dimensions
+      const gaugeBottom = 140; // Approximate bottom position of the gauge
+      const buttonTop = windowHeight - 120; // Approximate top position of bottom buttons
+      
+      // Calculate available height for transcript
+      const availableHeight = buttonTop - gaugeBottom;
+      
+      // Set max height based on available space (with a minimum)
+      const maxHeight = Math.max(Math.min(availableHeight * 0.8, 500), 200); // 80% of available height, max 500px, min 200px
+      
+      // Calculate optimal width
+      const maxWidth = Math.min(windowWidth * 0.9, 650); // 90% of window width, max 650px
+      
+      // Apply new dimensions
+      transcriptArea.style.maxHeight = maxHeight + 'px';
+      transcriptArea.style.width = maxWidth + 'px';
+      
+      // On very small screens, adjust vertical position
+      if (windowHeight < 600) {
+        // Move up slightly to make more room for the button
+        transcriptArea.style.top = '45%';
+      } else {
+        transcriptArea.style.top = '50%';
+      }
+      
+      // On mobile, make sure transcript doesn't overlap with bottom controls
+      if (windowWidth < 480) {
+        transcriptArea.style.maxHeight = (maxHeight - 20) + 'px';
+      }
+    }
+    
+    // Adjust transcript area on page load and whenever the window resizes
+    adjustTranscriptArea();
+    window.addEventListener('resize', adjustTranscriptArea);
+    
+    // Also adjust the transcript area when new content is added to the final transcription
+    const transcriptObserver = new MutationObserver(adjustTranscriptArea);
+    transcriptObserver.observe(finalTranscription, { childList: true });
+    
+    // Check if we should show the welcome modal
+    checkShowWelcomeModal();
 });

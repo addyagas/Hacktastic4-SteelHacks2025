@@ -9,6 +9,7 @@ html, body {
   /* Increase base font size for better readability */
   font-size: 18px;
   line-height: 1.6;
+  scroll-behavior: smooth; /* Smooth scrolling for better UX */
 }
 
 @keyframes slideInLeft {
@@ -30,6 +31,7 @@ html, body {
     margin-bottom: 15px; /* Increased spacing */
     min-height: 24px; /* Larger minimum height */
     font-size: 16px; /* Explicit font size for readability */
+    padding: 4px 0;
 }
 
 .final-transcription {
@@ -37,6 +39,16 @@ html, body {
     font-weight: 600; /* Bolder for better visibility */
     font-size: 18px; /* Larger font size */
     line-height: 1.8; /* Better line spacing */
+    padding: 4px 0;
+    max-height: calc(100% - 50px); /* Leave room for interim transcription */
+}
+
+/* Empty state styling */
+.final-transcription:empty::before {
+    content: "Your transcription will appear here...";
+    color: #6b7280;
+    font-style: italic;
+    opacity: 0.7;
 }
 
 /* Low Risk - High contrast for better readability */
@@ -102,6 +114,26 @@ button {
   transition: all 0.2s ease;
 }
 
+#helpButton {
+  width: 56px;
+  height: 56px;
+  padding: 10px !important;
+  font-size: 24px !important;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(31, 41, 55, 0.8);
+  border: 2px solid #4B5563;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+#helpButton:hover {
+  background-color: rgba(55, 65, 81, 0.9);
+  transform: scale(1.05);
+  border-color: #00FFFF;
+}
+
 button:hover {
   transform: scale(1.05);
   border-color: rgba(255, 255, 255, 0.3);
@@ -121,6 +153,42 @@ h1 {
 h2 {
   font-size: 22px !important;
   font-weight: 600 !important;
+}
+
+/* Transcript container for dynamic positioning */
+.transcript-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(650px, 90vw);
+  max-height: min(320px, 50vh);
+  z-index: 10;
+  transition: all 0.3s ease;
+  border: 1px solid rgba(75, 85, 99, 0.5);
+  backdrop-filter: blur(3px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+/* Media queries for better responsiveness on different devices */
+@media (max-height: 700px) {
+  .transcript-container {
+    max-height: 250px;
+  }
+}
+
+@media (max-height: 500px) {
+  .transcript-container {
+    max-height: 200px;
+    padding: 12px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .transcript-container {
+    width: 95vw;
+    padding: 12px !important;
+  }
 }
 
 /* Status badge enhancement */

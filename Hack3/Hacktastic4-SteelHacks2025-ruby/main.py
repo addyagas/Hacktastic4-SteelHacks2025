@@ -14,7 +14,7 @@ from flask_socketio import SocketIO, emit
 from live_transcript_analyzer import TranscriptAnalyzer
 
 # --- Configuration ---
-YOUR_API_KEY = "e8f7002b0f854a4dbb208d297e29aa74" 
+YOUR_API_KEY = "e8f7002b0f854a4dbb208d297e29aa74" # Replace with your actual AssemblyAI API key current one is invalid
 
 CONNECTION_PARAMS = {
     "sample_rate": 16000,

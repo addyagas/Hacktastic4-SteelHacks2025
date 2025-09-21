@@ -57,18 +57,11 @@ class TranscriptAnalyzer:
         # For interim results, check if we should throttle the analysis
         if is_interim:
             current_time = time.time()
-            # If it's too soon since the last interim analysis, return the previous analysis
+            # If it's too soon since the last interim analysis, we should still analyze the current text
+            # to avoid showing stale results with new text
             if (current_time - self.last_interim_analysis_time) < self.interim_analysis_interval:
-                # If we have a previous analysis, return that
-                if self.latest_analysis is not None:
-                    return {
-                        "foundKeywords": list(self.found_keywords),
-                        "keywordCount": len(self.found_keywords),
-                        "newlyFoundKeywords": [],
-                        "scamAnalysis": self.latest_analysis,
-                        "transcript": text,
-                        "aiSummary": self.latest_summary
-                    }
+                # Always analyze the current text to avoid stale percentage with new text
+                pass  # Continue with fresh analysis
             # Update the last analysis time
             self.last_interim_analysis_time = current_time
         

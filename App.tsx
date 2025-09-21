@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { transcribeAudio } from './services/assemblyAIService';
+import { generateThreatExplanation } from './services/geminiService';
 import { THREAT_KEYWORDS } from './constants';
 
 const App: React.FC = () => {
@@ -10,6 +11,8 @@ const App: React.FC = () => {
     const [transcript, setTranscript] = useState<string | null>(null);
     const [detectedThreats, setDetectedThreats] = useState<string[]>([]);
     const [threatCount, setThreatCount] = useState(0);
+    const [aiExplanation, setAiExplanation] = useState<string | null>(null);
+    const [loadingExplanation, setLoadingExplanation] = useState(false);
     const audioChunks = useRef<Blob[]>([]);
 
     const handleStartMonitoring = () => {
@@ -107,11 +110,15 @@ const App: React.FC = () => {
         setTranscript(null);
         setDetectedThreats([]);
         setThreatCount(0);
+        setAiExplanation(null);
+        setLoadingExplanation(false);
     };
 
     const handleTranscribe = async () => {
         if (!audioBlob) return;
         setStatus('Transcribing with AssemblyAI...');
+        setAiExplanation(null);
+        
         try {
             const result = await transcribeAudio(audioBlob);
             setTranscript(result);
@@ -123,6 +130,18 @@ const App: React.FC = () => {
             
             if (threatAnalysis.threats.length > 0) {
                 setStatus(`⚠️ ${threatAnalysis.threats.length} threat keywords detected! Be careful.`);
+                
+                // Generate AI explanation for the threats
+                setLoadingExplanation(true);
+                try {
+                    const explanation = await generateThreatExplanation(threatAnalysis.threats);
+                    setAiExplanation(explanation);
+                } catch (explanationError) {
+                    console.error('Error generating explanation:', explanationError);
+                    setAiExplanation("These keywords are commonly used in scam calls to manipulate victims.");
+                } finally {
+                    setLoadingExplanation(false);
+                }
             } else {
                 setStatus('✅ No threats detected. Conversation appears safe.');
             }
@@ -204,6 +223,21 @@ const App: React.FC = () => {
                         <p className="text-sm text-red-600 mt-3">
                             <span className="font-semibold">Warning:</span> These keywords are commonly used in scam calls. Be cautious and verify the caller's identity.
                         </p>
+                        
+                        {/* AI Explanation Section */}
+                        <div className="mt-4 p-3 bg-red-100 rounded-lg border-l-4 border-red-500">
+                            <div className="flex items-center mb-1">
+                                <span className="text-red-700 text-sm mr-1">🤖</span>
+                                <span className="font-semibold text-red-700 text-sm">AI Security Analysis:</span>
+                            </div>
+                            {loadingExplanation ? (
+                                <p className="text-sm text-red-600 italic">Analyzing threat patterns...</p>
+                            ) : aiExplanation ? (
+                                <p className="text-sm text-red-700">{aiExplanation}</p>
+                            ) : (
+                                <p className="text-sm text-red-600 italic">Generating security analysis...</p>
+                            )}
+                        </div>
                     </div>
                 )}
 

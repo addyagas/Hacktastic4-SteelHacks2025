@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { transcribeAudio } from './services/assemblyAIService';
+import { THREAT_KEYWORDS } from './constants';
 
 const App: React.FC = () => {
     const [isListening, setIsListening] = useState(false);
@@ -7,6 +8,8 @@ const App: React.FC = () => {
     const [audioURL, setAudioURL] = useState<string | null>(null);
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
     const [transcript, setTranscript] = useState<string | null>(null);
+    const [detectedThreats, setDetectedThreats] = useState<string[]>([]);
+    const [threatCount, setThreatCount] = useState(0);
     const audioChunks = useRef<Blob[]>([]);
 
     const handleStartMonitoring = () => {
@@ -48,12 +51,62 @@ const App: React.FC = () => {
             });
     };
 
+    const analyzeThreats = (text: string): { threats: string[], count: number } => {
+        if (!text) return { threats: [], count: 0 };
+        
+        const lowerText = text.toLowerCase();
+        const foundThreats: string[] = [];
+        let totalCount = 0;
+        
+        THREAT_KEYWORDS.forEach(keyword => {
+            const regex = new RegExp(`\\b${keyword.toLowerCase()}\\b`, 'g');
+            const matches = lowerText.match(regex);
+            if (matches) {
+                foundThreats.push(keyword);
+                totalCount += matches.length;
+            }
+        });
+        
+        return { threats: [...new Set(foundThreats)], count: totalCount };
+    };
+
+    const highlightThreats = (text: string): React.ReactElement => {
+        if (!text || detectedThreats.length === 0) {
+            return <>{text}</>;
+        }
+        
+        let highlightedText = text;
+        const regex = new RegExp(`\\b(${detectedThreats.join('|')})\\b`, 'gi');
+        
+        const parts = highlightedText.split(regex);
+        
+        return (
+            <>
+                {parts.map((part, index) => {
+                    const isKeyword = detectedThreats.some(threat => 
+                        threat.toLowerCase() === part.toLowerCase()
+                    );
+                    
+                    return isKeyword ? (
+                        <span key={index} className="bg-red-200 text-red-800 font-semibold px-1 rounded">
+                            {part}
+                        </span>
+                    ) : (
+                        <span key={index}>{part}</span>
+                    );
+                })}
+            </>
+        );
+    };
+
     const handleReset = () => {
         setIsListening(false);
         setStatus('Ready to protect');
         setAudioURL(null);
         setAudioBlob(null);
         setTranscript(null);
+        setDetectedThreats([]);
+        setThreatCount(0);
     };
 
     const handleTranscribe = async () => {
@@ -62,7 +115,17 @@ const App: React.FC = () => {
         try {
             const result = await transcribeAudio(audioBlob);
             setTranscript(result);
-            setStatus('Transcription complete.');
+            
+            // Analyze transcript for threats
+            const threatAnalysis = analyzeThreats(result);
+            setDetectedThreats(threatAnalysis.threats);
+            setThreatCount(threatAnalysis.count);
+            
+            if (threatAnalysis.threats.length > 0) {
+                setStatus(`⚠️ ${threatAnalysis.threats.length} threat keywords detected! Be careful.`);
+            } else {
+                setStatus('✅ No threats detected. Conversation appears safe.');
+            }
         } catch (error) {
             console.error('Transcription error:', error);
             setTranscript('Error: Could not transcribe audio');
@@ -115,7 +178,43 @@ const App: React.FC = () => {
                 {transcript && (
                     <div className="mt-8 p-4 bg-green-50 rounded-xl border border-green-200">
                         <p className="text-sm text-gray-800">
-                            <span className="font-semibold text-green-700">Transcript:</span> {transcript}
+                            <span className="font-semibold text-green-700">Transcript:</span> {highlightThreats(transcript)}
+                        </p>
+                    </div>
+                )}
+
+                {detectedThreats.length > 0 && (
+                    <div className="mt-6 p-4 bg-red-50 rounded-xl border border-red-200">
+                        <div className="flex items-center mb-2">
+                            <span className="text-red-600 text-xl mr-2">⚠️</span>
+                            <span className="font-semibold text-red-700">
+                                Threat Keywords Detected ({threatCount} total occurrences)
+                            </span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {detectedThreats.map((threat, index) => (
+                                <span 
+                                    key={index}
+                                    className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-medium border border-red-300"
+                                >
+                                    {threat}
+                                </span>
+                            ))}
+                        </div>
+                        <p className="text-sm text-red-600 mt-3">
+                            <span className="font-semibold">Warning:</span> These keywords are commonly used in scam calls. Be cautious and verify the caller's identity.
+                        </p>
+                    </div>
+                )}
+
+                {transcript && detectedThreats.length === 0 && (
+                    <div className="mt-6 p-4 bg-blue-50 rounded-xl border border-blue-200">
+                        <div className="flex items-center">
+                            <span className="text-blue-600 text-xl mr-2">✅</span>
+                            <span className="font-semibold text-blue-700">No Threat Keywords Detected</span>
+                        </div>
+                        <p className="text-sm text-blue-600 mt-2">
+                            The conversation appears to be legitimate, but always stay vigilant.
                         </p>
                     </div>
                 )}

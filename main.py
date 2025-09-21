@@ -98,8 +98,8 @@ class TranscriptionSession:
                             'newly_found_keywords': analysis_result.get('newlyFoundKeywords', []),
                             'risk_level': analysis_result.get('scamAnalysis', {}).get('riskLevel', 'unknown'),
                             'score_percentage': analysis_result.get('scamAnalysis', {}).get('percentageScore', 0),
-                            'description': analysis_result.get('scamAnalysis', {}).get('description', '')
-                            # AI summary will be sent only when the session ends
+                            'description': analysis_result.get('scamAnalysis', {}).get('description', ''),
+                            'ai_summary': analysis_result.get('aiSummary', '')
                         }
                     }, room=self.client_id)
                 else:
@@ -131,17 +131,7 @@ class TranscriptionSession:
                 
                 # Get final threat analysis if there's any transcript
                 if self.analyzer.current_transcript.strip():
-                    # Get final analysis
                     final_analysis = self.analyzer.get_final_analysis()
-                    
-                    # Generate the AI summary for the final analysis
-                    from constants import generate_scam_summary
-                    ai_summary = generate_scam_summary(
-                        final_analysis.get('scamAnalysis', {}).get('matches', []),
-                        final_analysis.get('foundKeywords', []),
-                        final_analysis.get('scamAnalysis', {}).get('riskLevel', 'minimal'),
-                        final_analysis.get('transcript', '')
-                    )
                     
                     # Notify client of session termination with final analysis
                     socketio.emit('transcription_end', {
@@ -153,7 +143,7 @@ class TranscriptionSession:
                             'score_percentage': final_analysis.get('scamAnalysis', {}).get('percentageScore', 0),
                             'description': final_analysis.get('scamAnalysis', {}).get('description', ''),
                             'matches': final_analysis.get('scamAnalysis', {}).get('matches', []),
-                            'ai_summary': ai_summary
+                            'ai_summary': final_analysis.get('aiSummary', '')
                         }
                     }, room=self.client_id)
                 else:
@@ -285,25 +275,13 @@ def handle_start_transcription():
     client_id = request.sid
     print(f"Starting transcription for client: {client_id}")
     
-    # If a session already exists, stop it before creating a new one
-    if client_id in client_sessions:
-        client_sessions[client_id].stop()
-        # Don't delete the session yet, we'll reuse it
-    
-    # Create a new session or reset the existing one
+    # Create a new session if it doesn't exist
     if client_id not in client_sessions:
         client_sessions[client_id] = TranscriptionSession(client_id)
+        client_sessions[client_id].start()
+        emit('transcription_started', {'status': 'started'})
     else:
-        # Reset the analyzer to start fresh
-        client_sessions[client_id].analyzer.reset()
-        # Reset other necessary components
-        client_sessions[client_id].ws_app = None
-        client_sessions[client_id].ws_thread = None
-        client_sessions[client_id].stop_event = threading.Event()
-        client_sessions[client_id].connected = False
-        
-    client_sessions[client_id].start()
-    emit('transcription_started', {'status': 'started'})
+        emit('transcription_error', {'error': 'Session already exists'})
 
 @socketio.on('stop_transcription')
 def handle_stop_transcription():
@@ -313,7 +291,7 @@ def handle_stop_transcription():
     
     if client_id in client_sessions:
         client_sessions[client_id].stop()
-        # Don't delete the session, so it can be restarted
+        del client_sessions[client_id]
         emit('transcription_stopped', {'status': 'stopped'})
     else:
         emit('transcription_error', {'error': 'No active session'})
@@ -366,8 +344,8 @@ def create_frontend_files():
         <h1>Scam Call Detector</h1>
         
         <div class="controls">
-            <button id="startButton" class="button">Start New Session</button>
-            <button id="stopButton" class="button" disabled>Stop & Analyze</button>
+            <button id="startButton" class="button">Start Transcription</button>
+            <button id="stopButton" class="button" disabled>Stop Transcription</button>
         </div>
         
         <div class="status-container">
@@ -387,7 +365,7 @@ def create_frontend_files():
             <div class="threat-description" id="threatDescription">No threats detected yet</div>
             <div class="ai-summary-container">
                 <h3>AI Analysis:</h3>
-                <div id="aiSummary" class="ai-summary">AI analysis will be available after stopping transcription</div>
+                <div id="aiSummary" class="ai-summary">No AI analysis available yet</div>
             </div>
         </div>
         
@@ -556,20 +534,12 @@ h3 {
 }
 
 .ai-summary {
-    padding: 15px;
+    padding: 10px;
     background-color: #e8f5e9;
     border-radius: 4px;
     border-left: 4px solid #4CAF50;
     font-size: 14px;
-    line-height: 1.6;
-    margin-top: 8px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    transition: all 0.3s ease;
-}
-
-.ai-summary.analysis-complete {
-    background-color: #e3f2fd;
-    border-left-color: #2196F3;
+    line-height: 1.5;
 }
 
 .keywords-container {
@@ -682,20 +652,16 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         socket.on('transcription_started', (data) => {
-            isRecording = true;
             status.textContent = 'Transcription started';
             startButton.disabled = true;
             stopButton.disabled = false;
             // Reset threat displays
             resetThreatDisplay();
-            // Clear previous transcripts
-            finalTranscription.innerHTML = '';
-            interimTranscription.textContent = '';
         });
         
         socket.on('transcription_stopped', (data) => {
-            status.textContent = 'Analyzing transcription...';
-            startButton.disabled = true; // Keep disabled until analysis is complete
+            status.textContent = 'Transcription stopped';
+            startButton.disabled = false;
             stopButton.disabled = true;
         });
         
@@ -732,9 +698,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         socket.on('transcription_end', (data) => {
             console.log('Transcription ended:', data);
-            status.textContent = 'Analysis complete - Ready to start a new session';
-            startButton.disabled = false; // Re-enable the start button
-            stopButton.disabled = true;
+            status.textContent = 'Transcription ended';
             
             // Display final threat analysis if available
             if (data.final_threat_analysis) {
@@ -770,7 +734,7 @@ document.addEventListener('DOMContentLoaded', function() {
         threatScore.textContent = '0%';
         threatDescription.textContent = 'No threats detected yet';
         keywordsList.textContent = 'None detected';
-        aiSummary.textContent = 'AI analysis will be available after stopping transcription';
+        aiSummary.textContent = 'No AI analysis available yet';
         detectedKeywords.clear();
     }
     
@@ -795,14 +759,6 @@ document.addEventListener('DOMContentLoaded', function() {
         // Update AI summary
         if (analysis.ai_summary) {
             aiSummary.textContent = analysis.ai_summary;
-            aiSummary.style.fontWeight = 'bold';
-            // Add a visual indicator that analysis is complete
-            aiSummary.classList.add('analysis-complete');
-        } else if (isRecording) {
-            // During active recording, show the waiting message
-            aiSummary.textContent = 'AI analysis will be available after stopping transcription';
-            aiSummary.style.fontWeight = 'normal';
-            aiSummary.classList.remove('analysis-complete');
         }
         
         // Update keywords list
@@ -913,11 +869,6 @@ document.addEventListener('DOMContentLoaded', function() {
         isRecording = true;
         status.textContent = 'Recording and transcribing...';
         console.log('Started recording');
-        
-        // Reset the UI for a new session
-        finalTranscription.innerHTML = ''; // Clear previous transcripts
-        interimTranscription.textContent = '';
-        resetThreatDisplay();
     }
     
     // Stop transcription
@@ -929,9 +880,9 @@ document.addEventListener('DOMContentLoaded', function() {
             socket.emit('stop_transcription');
         }
         
-        // Update UI
-        status.textContent = 'Analyzing transcription...';
-        startButton.disabled = true; // Will be enabled after analysis is complete
+        // Reset UI
+        status.textContent = 'Stopped';
+        startButton.disabled = false;
         stopButton.disabled = true;
         
         // Close audio resources

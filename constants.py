@@ -286,33 +286,62 @@ def generate_scam_summary(matched_rules, found_keywords, risk_level, transcript)
     
     # Start with an appropriate introduction based on risk level
     if risk_level == "high":
-        summary = "⚠️ HIGH RISK: This call contains multiple strong indicators of a scam attempt. "
+        summary = "HIGH RISK: This call contains multiple strong indicators of a scam attempt. "
     elif risk_level == "medium":
-        summary = "⚠️ MEDIUM RISK: This call contains concerning patterns that may indicate a scam. "
+        summary = "MEDIUM RISK: This call contains concerning patterns that may indicate a scam. "
     elif risk_level == "low":
-        summary = "⚠️ LOW RISK: This call contains a few concerning elements that warrant caution. "
+        summary = "LOW RISK: This call contains a few concerning elements that warrant caution. "
     else:
-        summary = "ℹ️ MINIMAL RISK: This call contains very few concerning elements, but stay vigilant. "
-    
-    # Add explanation of top patterns detected (limit to top 3 for readability)
+        summary = "MINIMAL RISK: This call contains very few concerning elements, but stay vigilant. "
+
+    # Identify top patterns based on weight, frequency, and priority
     top_patterns = []
     if matched_rules:
-        # Sort rules by weight to get the most significant ones first
-        for rule in matched_rules[:3]:  # Take top 3 rules
+        # Sort rules by their applied_score (which includes frequency multipliers)
+        sorted_rules = sorted(matched_rules, key=lambda x: x.get("applied_score", x.get("weight", 0)), reverse=True)
+        
+        # Get high-frequency rules
+        high_frequency_rules = [rule for rule in sorted_rules if rule.get("frequency", 1) > 2]
+        
+        # Highlight repeated patterns
+        for rule in sorted_rules[:3]:  # Take top 3 rules
             tag = rule.get("tag")
+            frequency = rule.get("frequency", 1)
+            
             if tag in SCAM_PATTERNS_EXPLANATION:
-                top_patterns.append(SCAM_PATTERNS_EXPLANATION[tag])
+                explanation = SCAM_PATTERNS_EXPLANATION[tag]
+                
+                # Add frequency information for repeated patterns
+                if frequency > 2:
+                    explanation += f" (mentioned {frequency} times)"
+                
+                top_patterns.append(explanation)
     
     if top_patterns:
         summary += "Key concerns: " + "; ".join(top_patterns) + ". "
     
-    # Add information about suspicious keywords
+    # Add information about suspicious keywords and their frequency
     if found_keywords:
-        if len(found_keywords) > 5:
-            keyword_sample = found_keywords[:5]
-            summary += f"Suspicious terms detected include: {', '.join(keyword_sample)}, and {len(found_keywords) - 5} others. "
-        else:
-            summary += f"Suspicious terms detected: {', '.join(found_keywords)}. "
+        # Count keyword frequencies for display
+        keyword_freq = {}
+        for keyword in found_keywords:
+            lower_keyword = keyword.lower()
+            if lower_keyword in keyword_freq:
+                keyword_freq[lower_keyword] += 1
+            else:
+                keyword_freq[lower_keyword] = 1
+        
+        # Sort keywords by frequency for more relevant display
+        sorted_keywords = sorted(keyword_freq.items(), key=lambda x: x[1], reverse=True)
+        
+        # Format keyword list with frequencies for repeated terms
+        formatted_keywords = []
+        for keyword, freq in sorted_keywords[:5]:
+            if freq > 1:
+                formatted_keywords.append(f"{keyword} ({freq}×)")
+            else:
+                formatted_keywords.append(keyword)
+                
     
     # Add appropriate advice based on risk level
     if risk_level in ["high", "medium"]:

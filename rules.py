@@ -1,51 +1,75 @@
 import re
 
+# Define high priority scam patterns with increased weights
+# HIGH_PRIORITY_MULTIPLIER will be applied to these rules when detected multiple times
+HIGH_PRIORITY_RULES = {
+    "money_transfer": True,
+    "gift_card": True,
+    "crypto": True,
+    "sensitive_request": True,
+    "remote_support": True,
+    "family_emergency": True,
+    "authority_threat": True,
+    "malicious_attachment": True,
+    "disguised_executable": True,
+    "bank_transfer_scam": True,
+    "legal_threat_scam": True,
+    "securities_fraud": True,
+    "nigerian_prince_scam": True
+}
+
+# Configuration for frequency-based scoring
+HIGH_PRIORITY_MULTIPLIER = 1.5  # Additional weight multiplier for high priority rules
+FREQUENCY_THRESHOLD = 3  # Number of occurrences before applying frequency multiplier
+FREQUENCY_MULTIPLIER = 1.2  # Multiplier for each occurrence beyond threshold
+MAX_FREQUENCY_MULTIPLIER = 2.5  # Cap on the frequency multiplier
+
 # Define the rules
 RULES = [
     # URGENCY / TIME PRESSURE
-    {"rx": re.compile(r"(urgent|immediately|right now|now|asap|don't delay|this minute)", re.IGNORECASE), "w": 18, "tag": "urgency"},
-    {"rx": re.compile(r"(before.*(end of day|today|tomorrow))", re.IGNORECASE), "w": 12, "tag": "deadline"},
+    {"rx": re.compile(r"(urgent|immediately|right now|now|asap|don't delay|this minute)", re.IGNORECASE), "w": 20, "tag": "urgency"},
+    {"rx": re.compile(r"(before.*(end of day|today|tomorrow))", re.IGNORECASE), "w": 15, "tag": "deadline"},
   
     # PAYMENT / MONEY REQUESTS
-    {"rx": re.compile(r"(wire( a)? transfer|bank transfer|wire money|send (money|funds)|transfer (funds|money))", re.IGNORECASE), "w": 20, "tag": "money_transfer"},
-    {"rx": re.compile(r"(gift card|iTunes card|google play card|amazon gift card|prepaid card)", re.IGNORECASE), "w": 22, "tag": "gift_card"},
-    {"rx": re.compile(r"(bitcoin|crypto|ethereum|btc|send crypto)", re.IGNORECASE), "w": 20, "tag": "crypto"},
-    {"rx": re.compile(r"(\$\s?\d{2,}|[0-9]{3,}\s?(dollars|usd))", re.IGNORECASE), "w": 12, "tag": "large_amount"},
+    {"rx": re.compile(r"(wire( a)? transfer|bank transfer|wire money|send (money|funds)|transfer (funds|money))", re.IGNORECASE), "w": 25, "tag": "money_transfer"},
+    {"rx": re.compile(r"(gift card|iTunes card|google play card|amazon gift card|prepaid card)", re.IGNORECASE), "w": 28, "tag": "gift_card"},
+    {"rx": re.compile(r"(bitcoin|crypto|ethereum|btc|send crypto)", re.IGNORECASE), "w": 25, "tag": "crypto"},
+    {"rx": re.compile(r"(\$\s?\d{2,}|[0-9]{3,}\s?(dollars|usd))", re.IGNORECASE), "w": 15, "tag": "large_amount"},
   
     # FAMILY / EMOTIONAL MANIPULATION
-    {"rx": re.compile(r"(grandson|granddaughter|son|daughter|mom|dad|mother|father).*(in jail|in trouble|accident|hurt|sick)", re.IGNORECASE), "w": 22, "tag": "family_emergency"},
-    {"rx": re.compile(r"(your (child|grandchild) needs help|call me back or they'll)", re.IGNORECASE), "w": 18, "tag": "emotional_appeal"},
+    {"rx": re.compile(r"(grandson|granddaughter|son|daughter|mom|dad|mother|father).*(in jail|in trouble|accident|hurt|sick)", re.IGNORECASE), "w": 28, "tag": "family_emergency"},
+    {"rx": re.compile(r"(your (child|grandchild) needs help|call me back or they'll)", re.IGNORECASE), "w": 22, "tag": "emotional_appeal"},
   
     # AUTHORITY / OFFICIAL THREATS
-    {"rx": re.compile(r"(irs|social security|ssa|police|warrant|court|federal|taxes).*(fine|penalty|arrest|deport)", re.IGNORECASE), "w": 20, "tag": "authority_threat"},
-    {"rx": re.compile(r"(we represent the (government|internal revenue service|police))", re.IGNORECASE), "w": 14, "tag": "authority_claim"},
+    {"rx": re.compile(r"(irs|social security|ssa|police|warrant|court|federal|taxes).*(fine|penalty|arrest|deport)", re.IGNORECASE), "w": 25, "tag": "authority_threat"},
+    {"rx": re.compile(r"(we represent the (government|internal revenue service|police))", re.IGNORECASE), "w": 18, "tag": "authority_claim"},
   
     # CREDENTIALS / VERIFICATION
-    {"rx": re.compile(r"(verify.*(pin|password|account number|security code|otp|one[- ]time code))", re.IGNORECASE), "w": 18, "tag": "credential_request"},
-    {"rx": re.compile(r"(read me your (pin|password|code|ssn|social security number))", re.IGNORECASE), "w": 22, "tag": "sensitive_request"},
+    {"rx": re.compile(r"(verify.*(pin|password|account number|security code|otp|one[- ]time code))", re.IGNORECASE), "w": 22, "tag": "credential_request"},
+    {"rx": re.compile(r"(read me your (pin|password|code|ssn|social security number))", re.IGNORECASE), "w": 28, "tag": "sensitive_request"},
   
     # SECRECY / ISOLATION REQUESTS
-    {"rx": re.compile(r"(don't tell|keep this (secret|between us)|do not mention to anyone)", re.IGNORECASE), "w": 14, "tag": "secrecy"},
+    {"rx": re.compile(r"(don't tell|keep this (secret|between us)|do not mention to anyone)", re.IGNORECASE), "w": 18, "tag": "secrecy"},
   
     # NEW PAYEE / URGENCY TO SETUP
-    {"rx": re.compile(r"(new (account|payee|recipient)|we need new payment info)", re.IGNORECASE), "w": 12, "tag": "new_payee"},
+    {"rx": re.compile(r"(new (account|payee|recipient)|we need new payment info)", re.IGNORECASE), "w": 15, "tag": "new_payee"},
   
     # TECHNICAL SUPPORT / REMOTE ACCESS
-    {"rx": re.compile(r"(remote access|download this app|teamviewer|anydesk|give me remote|install .* (remote|support))", re.IGNORECASE), "w": 18, "tag": "remote_support"},
-    {"rx": re.compile(r"(computer is infected|your device has a virus|we blocked your account)", re.IGNORECASE), "w": 14, "tag": "tech_fear"},
+    {"rx": re.compile(r"(remote access|download this app|teamviewer|anydesk|give me remote|install .* (remote|support))", re.IGNORECASE), "w": 25, "tag": "remote_support"},
+    {"rx": re.compile(r"(computer is infected|your device has a virus|we blocked your account)", re.IGNORECASE), "w": 18, "tag": "tech_fear"},
   
     # PAYMENT CHANNELS / FAST METHODS
-    {"rx": re.compile(r"(venmo|cash(app)?|zelle|paypal.me|western union|moneygram)", re.IGNORECASE), "w": 16, "tag": "fast_payment_channel"},
+    {"rx": re.compile(r"(venmo|cash(app)?|zelle|paypal.me|western union|moneygram)", re.IGNORECASE), "w": 20, "tag": "fast_payment_channel"},
   
     # SOCIAL-ENGINEERING PHRASES
-    {"rx": re.compile(r"(this is confidential|you must do this now|if you don't comply)", re.IGNORECASE), "w": 12, "tag": "social_pressure"},
-    {"rx": re.compile(r"(only for you|do not discuss|for security reasons do not)", re.IGNORECASE), "w": 10, "tag": "isolating_instruction"},
+    {"rx": re.compile(r"(this is confidential|you must do this now|if you don't comply)", re.IGNORECASE), "w": 15, "tag": "social_pressure"},
+    {"rx": re.compile(r"(only for you|do not discuss|for security reasons do not)", re.IGNORECASE), "w": 12, "tag": "isolating_instruction"},
   
     # SPOOF / CALLBACK REQUESTS
     {"rx": re.compile(r"(call us back at|call this number|verify by calling)", re.IGNORECASE), "w": 10, "tag": "callback_request"},
   
     # CONFIRMATION CODES / LINKS
-    {"rx": re.compile(r"(click the link|open this link|follow this link|scan this qr)", re.IGNORECASE), "w": 12, "tag": "malicious_link"},
+    {"rx": re.compile(r"(click the link|open this link|follow this link|scan this qr)", re.IGNORECASE), "w": 15, "tag": "malicious_link"},
     {"rx": re.compile(r"(confirmation code|access code|verification link)", re.IGNORECASE), "w": 10, "tag": "confirm_code"},
   
     # LEGAL / URGENT FINES
@@ -121,23 +145,20 @@ RULES = [
     {"rx": re.compile(r"(scam|fraud|suspicious)", re.IGNORECASE), "w": 6, "tag": "self_reference"}
 ]
 
-def get_max_possible_score():
-    """Calculate the maximum possible score from all rules"""
-    return sum(rule["w"] for rule in RULES)
-
 def interpret_scam_score(percentage_score):
     """Interpret the scam score as a risk level and description"""
-    if percentage_score >= 70:
+    if percentage_score >= 75:
         return {"level": "high", "description": "Highly likely to be a scam. Multiple strong indicators detected."}
-    if percentage_score >= 40:
+    if percentage_score >= 45:
         return {"level": "medium", "description": "Moderate risk of being a scam. Some concerning patterns found."}
-    if percentage_score >= 20:
+    if percentage_score >= 25:
         return {"level": "low", "description": "Low risk, but stay vigilant. Some concerning patterns detected."}
     return {"level": "minimal", "description": "Minimal risk detected. Very few or no concerning patterns found."}
 
 def calculate_scam_score(text):
     """
     Calculate a scam score for the given text by checking against defined rules.
+    Takes into account both rule matching and the frequency of matches.
     
     Args:
         text (str): The text to analyze for scam indicators
@@ -147,24 +168,63 @@ def calculate_scam_score(text):
     """
     total_score = 0
     matched_rules = []
-    max_score = get_max_possible_score()
-
+    max_score = 150  # Increased max score to account for frequency multipliers
+    
+    # Dictionary to track rule match frequencies
+    rule_frequencies = {}
+    
+    # First pass: find all matches and count frequencies
     for rule in RULES:
-        if rule["rx"].search(text):
-            total_score += rule["w"]
-            matched_rules.append({"tag": rule["tag"], "weight": rule["w"]})
+        tag = rule["tag"]
+        matches = list(rule["rx"].finditer(text))
+        match_count = len(matches)
+        
+        if match_count > 0:
+            rule_frequencies[tag] = match_count
+            
+            # Calculate base score from the rule
+            base_score = rule["w"]
+            
+            # Apply frequency multiplier for repeated matches
+            frequency_multiplier = 1.0
+            if match_count > FREQUENCY_THRESHOLD:
+                # Calculate multiplier based on occurrence frequency
+                additional_multiplier = min(
+                    (match_count - FREQUENCY_THRESHOLD) * FREQUENCY_MULTIPLIER,
+                    MAX_FREQUENCY_MULTIPLIER
+                )
+                frequency_multiplier += additional_multiplier
+                
+                # Apply higher multiplier for high-priority rules
+                if tag in HIGH_PRIORITY_RULES:
+                    frequency_multiplier *= HIGH_PRIORITY_MULTIPLIER
+            
+            # Apply the calculated score
+            rule_score = base_score * frequency_multiplier
+            total_score += rule_score
+            
+            # Record the match details
+            matched_rules.append({
+                "tag": tag, 
+                "weight": rule["w"],
+                "frequency": match_count,
+                "applied_score": round(rule_score, 1),
+                "multiplier": round(frequency_multiplier, 2)
+            })
 
-    percentage_score = (total_score / max_score) * 100
+    percentage_score = min((total_score / max_score) * 100, 100)  # Cap at 100%
     interpretation = interpret_scam_score(percentage_score)
     
     return {
-        "score": total_score,
+        "score": round(total_score, 1),
         "percentageScore": round(percentage_score),
         "maxPossibleScore": max_score,
         "matches": matched_rules,
         "riskLevel": interpretation["level"],
-        "description": interpretation["description"]
+        "description": interpretation["description"],
+        "ruleFrequencies": rule_frequencies
     }
 
 # Export functions for use in other modules
-__all__ = ["calculate_scam_score", "interpret_scam_score", "RULES"]
+__all__ = ["calculate_scam_score", "interpret_scam_score", "RULES", 
+           "HIGH_PRIORITY_RULES", "FREQUENCY_THRESHOLD", "FREQUENCY_MULTIPLIER"]

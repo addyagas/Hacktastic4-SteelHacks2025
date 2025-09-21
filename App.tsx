@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { transcribeAudio } from './services/assemblyAIService';
 
 const App: React.FC = () => {
 
@@ -59,16 +60,20 @@ const App: React.FC = () => {
         setTranscript(null);
     };
 
-    // Placeholder for sending audio to Whisper API
+    // Real implementation using AssemblyAI Speech-to-Text API
     const handleTranscribe = async () => {
         if (!audioBlob) return;
-        setStatus('Transcribing...');
-        // TODO: Implement backend call to OpenAI Whisper API
-        // For now, just simulate
-        setTimeout(() => {
-            setTranscript('(Transcript would appear here)');
+        setStatus('Transcribing with AssemblyAI...');
+        
+        try {
+            const result = await transcribeAudio(audioBlob);
+            setTranscript(result);
             setStatus('Transcription complete.');
-        }, 2000);
+        } catch (error) {
+            console.error('Transcription error:', error);
+            setTranscript('Error: Could not transcribe audio');
+            setStatus('Transcription failed.');
+        }
     };
 
     return (

@@ -1,114 +1,149 @@
+// App.tsx
 import React, { useState, useEffect, useRef } from 'react';
+
+type ThreatLevel = 'low' | 'medium' | 'high';
 
 interface Notification {
   id: number;
   message: string;
+  level: ThreatLevel;
 }
+
+const threatColors: Record<ThreatLevel, string> = {
+  low: '#725def',
+  medium: '#ffb00d',
+  high: '#dd217d',
+};
+
+const hexToRgb = (hex: string): [number, number, number] => {
+  const bigint = parseInt(hex.slice(1), 16);
+  return [(bigint >> 16) & 255, (bigint >> 8) & 255, bigint & 255];
+};
+
+const rgbToHex = ([r, g, b]: [number, number, number]): string =>
+  `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+
+const mixRgb = (
+  a: [number, number, number],
+  b: [number, number, number],
+  t: number
+): [number, number, number] => [
+  Math.round(a[0] + (b[0] - a[0]) * t),
+  Math.round(a[1] + (b[1] - a[1]) * t),
+  Math.round(a[2] + (b[2] - a[2]) * t),
+];
+
+const getGaugeColor = (score: number): string => {
+  const pct = Math.max(0, Math.min(100, score));
+  const stops = [threatColors.low, threatColors.medium, threatColors.high].map(hexToRgb);
+  const t = pct <= 50 ? pct / 50 : (pct - 50) / 50;
+  const [c0, c1] = pct <= 50 ? [stops[0], stops[1]] : [stops[1], stops[2]];
+  return rgbToHex(mixRgb(c0, c1, t));
+};
 
 const App: React.FC = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [threatLevel, setThreatLevel] = useState(0);
+  const [threatScore, setThreatScore] = useState(0);
   const [isListening, setIsListening] = useState(false);
   const [status, setStatus] = useState('Ready to protect');
 
-  const lastNotificationRef = useRef<HTMLDivElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
   const notifIntervalRef = useRef<number | null>(null);
-  const threatIntervalRef = useRef<number | null>(null);
   const autoStopTimeoutRef = useRef<number | null>(null);
 
-  // Auto-scroll to the newest notification
+  const hasNotifications = notifications.length > 0;
+
+  // Auto-scroll on new notification
   useEffect(() => {
-    if (lastNotificationRef.current) {
-      lastNotificationRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
+    containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   }, [notifications]);
 
-  // Clean up on unmount
-  useEffect(() => {
-    return () => {
-      stopMonitoring('Ready to protect');
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const getThreatColor = () => {
-    const hue = 120 - threatLevel * 1.2; // green → red
-    return `hsl(${hue}, 100%, 50%)`;
-  };
+  // Cleanup on unmount
+  useEffect(() => () => stopMonitoring('Ready to protect'), []);
 
   const startIntervals = () => {
-    // Notifications while listening
     notifIntervalRef.current = window.setInterval(() => {
-      const newNotification: Notification = {
-        id: Date.now(),
-        message: `⚠️ Threat detected at ${new Date().toLocaleTimeString()}`
-      };
-      setNotifications((prev) => [...prev, newNotification]);
-    }, 5000);
-
-    // Threat level animation while listening
-    threatIntervalRef.current = window.setInterval(() => {
-      setThreatLevel((prev) => Math.min(100, prev + 7));
-    }, 1000);
+      const levels: ThreatLevel[] = ['low', 'medium', 'high'];
+      const lvl = levels[Math.floor(Math.random() * levels.length)];
+      setNotifications(prev => [
+        {
+          id: Date.now(),
+          message: `⚠️ ${lvl.toUpperCase()} threat detected at ${new Date().toLocaleTimeString()}`,
+          level: lvl,
+        },
+        ...prev,
+      ]);
+      setThreatScore(prev => Math.min(100, prev + 15));
+    }, 2000);
   };
 
-  const clearIntervalsAndTimeouts = () => {
-    if (notifIntervalRef.current) {
-      clearInterval(notifIntervalRef.current);
-      notifIntervalRef.current = null;
-    }
-    if (threatIntervalRef.current) {
-      clearInterval(threatIntervalRef.current);
-      threatIntervalRef.current = null;
-    }
-    if (autoStopTimeoutRef.current) {
-      clearTimeout(autoStopTimeoutRef.current);
-      autoStopTimeoutRef.current = null;
-    }
+  const clearTimers = () => {
+    [notifIntervalRef, autoStopTimeoutRef].forEach(ref => {
+      if (ref.current !== null) {
+        clearTimeout(ref.current);
+        ref.current = null;
+      }
+    });
   };
 
   const stopMonitoring = (finalStatus?: string) => {
     setIsListening(false);
-    if (micStreamRef.current) {
-      micStreamRef.current.getTracks().forEach((t) => t.stop());
-      micStreamRef.current = null;
-    }
-    clearIntervalsAndTimeouts();
+    micStreamRef.current?.getTracks().forEach(t => t.stop());
+    micStreamRef.current = null;
+    clearTimers();
     if (finalStatus) setStatus(finalStatus);
   };
 
   const startMonitoring = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      micStreamRef.current = stream;
+      micStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
       setIsListening(true);
       setStatus('🎤 Listening for threats...');
-
-      // Reset threat level at start of a new session
-      setThreatLevel(0);
-
+      setThreatScore(0);
       startIntervals();
-
-      // Demo auto-stop after 10 seconds (from second code)
-      autoStopTimeoutRef.current = window.setTimeout(() => {
-        stopMonitoring('✅ Analysis complete — No threats detected');
-      }, 10000);
+      autoStopTimeoutRef.current = window.setTimeout(
+        () => stopMonitoring('✅ Analysis complete — No threats detected'),
+        10000
+      );
     } catch {
       setStatus('🚫 Microphone access required');
     }
   };
 
-  const toggleListening = () => {
-    if (isListening) {
-      stopMonitoring('Ready to protect');
-    } else {
-      startMonitoring();
-    }
+  const toggleListening = () =>
+    isListening ? stopMonitoring('Ready to protect') : startMonitoring();
+
+  const notificationsStyle: React.CSSProperties = {
+    width: hasNotifications ? '50%' : '0px',
+    opacity: hasNotifications ? 1 : 0,
+    transition: 'width 500ms ease, opacity 400ms ease',
+    overflowY: 'auto',
+    paddingLeft: '10px',
+    maxHeight: '300px',
+  };
+
+  const gaugeStyle: React.CSSProperties = {
+    width: hasNotifications ? '50%' : '100%',
+    transition: 'width 500ms ease',
+    display: 'flex',
+    justifyContent: 'center',
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center pt-16 px-4 relative">
+    <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center pt-16 px-4 relative pb-32 overflow-hidden">
+      <style>
+        {`
+          html, body { overflow: hidden; height: 100%; }
+          @keyframes slideInLeft {
+            from { transform: translateX(-20px); opacity: 0; }
+            to   { transform: translateX(0);     opacity: 1; }
+          }
+          .notification-item { animation: slideInLeft 0.4s ease-out; }
+          .scroll-container::-webkit-scrollbar { display: none; }
+        `}
+      </style>
+
       {/* Header */}
       <div className="mb-8 text-center">
         <div className="w-28 h-28 bg-gradient-to-r from-cyan-500 to-blue-700 rounded-full flex items-center justify-center mx-auto mb-3 shadow-lg">
@@ -118,18 +153,11 @@ const App: React.FC = () => {
             stroke="currentColor"
             viewBox="0 0 24 24"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 2l9 4-3 10a9 9 0 01-12 0L3 6l9-4z"
-            />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2l9 4-3 10a9 9 0 01-12 0L3 6l9-4z" />
           </svg>
         </div>
         <h1 className="text-4xl font-bold tracking-wide">Cyber Sentinel</h1>
         <p className="text-lg text-gray-400">Real-Time Threat Intelligence</p>
-
-        {/* Status */}
         <div className="mt-4 text-sm">
           <span className="px-3 py-1 rounded-full bg-gray-800 border border-gray-700 text-cyan-300">
             {status}
@@ -137,45 +165,41 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* Main content */}
-      <div className="flex flex-row gap-8 w-full max-w-5xl items-start mt-8">
+      {/* Main */}
+      <div
+        className="w-full max-w-5xl items-start mt-4 relative"
+        style={{
+          top: '-10px',
+          display: 'flex',
+          flexDirection: 'row',
+          gap: hasNotifications ? '2rem' : '0',
+          transition: 'gap 300ms ease',
+        }}
+      >
         {/* Notifications */}
         <div
-          className="flex-1 flex flex-col space-y-2 overflow-y-auto pr-2"
-          style={{
-            maxHeight: '300px',
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none'
-          }}
+          ref={containerRef}
+          className="scroll-container flex flex-col space-y-2 pr-2"
+          style={notificationsStyle}
         >
-          <style>
-            {`
-              div::-webkit-scrollbar {
-                display: none;
-              }
-            `}
-          </style>
-          {notifications.map((n, index) => {
-            const isLast = index === notifications.length - 1;
-            return (
-              <div
-                key={n.id}
-                ref={isLast ? lastNotificationRef : null}
-                className="p-3 rounded-lg shadow bg-gray-800 text-cyan-300 transition-opacity duration-500 border border-cyan-600"
-                style={{
-                  opacity: Math.min(1, 0.3 + index * 0.13)
-                }}
-              >
-                {n.message}
-              </div>
-            );
-          })}
+          {notifications.map(n => (
+            <div
+              key={n.id}
+              className="notification-item p-3 rounded-lg shadow transition-opacity duration-500 border"
+              style={{
+                backgroundColor: '#1F2937',
+                color: threatColors[n.level],
+                borderColor: threatColors[n.level],
+              }}
+            >
+              {n.message}
+            </div>
+          ))}
         </div>
 
-        {/* Threat Gauge */}
-        <div className="flex-1 flex items-center justify-center overflow-visible">
+        {/* Gauge */}
+        <div style={gaugeStyle} className="overflow-visible">
           <svg viewBox="0 0 240 140" className="w-full max-w-sm overflow-visible">
-            {/* Background arc */}
             <path
               d="M 40 120 A 80 80 0 0 1 200 120"
               fill="none"
@@ -183,20 +207,22 @@ const App: React.FC = () => {
               strokeWidth="20"
               strokeLinecap="round"
             />
-            {/* Foreground arc */}
             <path
               d="M 40 120 A 80 80 0 0 1 200 120"
               fill="none"
-              stroke={threatLevel === 0 ? 'transparent' : getThreatColor()}
+              stroke={threatScore === 0 ? 'transparent' : getGaugeColor(threatScore)}
               strokeWidth="20"
               strokeLinecap="round"
               strokeDasharray="251"
-              strokeDashoffset={251 - (threatLevel / 100) * 251}
+              strokeDashoffset={251 - (threatScore / 100) * 251}
               style={{ transition: 'stroke 0.5s, stroke-dashoffset 0.5s' }}
             />
             <circle cx="120" cy="120" r="35" fill="#111827" stroke="#4B5563" strokeWidth="2" />
             <svg x="100" y="100" width="40" height="40" viewBox="0 0 24 24">
-              <path fill={getThreatColor()} d="M12 2l9 4-3 10a9 9 0 01-12 0L3 6l9-4z" />
+              <path
+                fill={getGaugeColor(threatScore)}
+                d="M12 2l9 4-3 10a9 9 0 01-12 0L3 6l9-4z"
+              />
             </svg>
             <text
               x="120"
@@ -207,13 +233,13 @@ const App: React.FC = () => {
               fontWeight="bold"
               style={{ textShadow: '0 0 4px #00FFFF' }}
             >
-              {threatLevel}%
+              {threatScore}%
             </text>
           </svg>
         </div>
       </div>
 
-      {/* Listening Button */}
+      {/* Toggle Button */}
       <div className="fixed bottom-8">
         <button
           onClick={toggleListening}

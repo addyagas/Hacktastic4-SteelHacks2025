@@ -142,14 +142,19 @@ class TranscriptAnalyzer:
         Returns:
             dict: Analysis results of the complete transcript
         """
-        return {
-            "foundKeywords": list(self.found_keywords),
-            "keywordCount": len(self.found_keywords),
-            "newlyFoundKeywords": [],
-            "scamAnalysis": self.latest_analysis,
-            "transcript": self.current_transcript,
-            "aiSummary": self.latest_summary
-        }
+        # Perform fresh analysis on the complete transcript
+        if self.current_transcript.strip():
+            final_analysis = self.analyze_text(self.current_transcript, is_interim=False)
+            return final_analysis
+        else:
+            return {
+                "foundKeywords": [],
+                "keywordCount": 0,
+                "newlyFoundKeywords": [],
+                "scamAnalysis": {"percentageScore": 0, "riskLevel": "low", "description": "No content to analyze"},
+                "transcript": "",
+                "aiSummary": "No content was detected for analysis."
+            }
     
     def reset(self):
         """Reset the transcript and analysis"""

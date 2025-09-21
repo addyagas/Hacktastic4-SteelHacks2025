@@ -64,6 +64,13 @@ document.addEventListener('DOMContentLoaded', function() {
             });
 
             socket.on('transcription_result', (data) => {
+                // Debug logging to see what we're receiving
+                console.log('Received transcription_result:', data);
+                if (data.threat_analysis) {
+                    console.log('Threat analysis:', data.threat_analysis);
+                    console.log('Score percentage:', data.threat_analysis.score_percentage);
+                }
+                
                 if (data.is_final) {
                     const p = document.createElement('p');
                     p.textContent = data.transcript;
@@ -74,8 +81,35 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (data.threat_analysis && data.threat_analysis.newly_found_keywords.length > 0) {
                         p.innerHTML = highlightKeywords(data.transcript, data.threat_analysis.newly_found_keywords, data.threat_analysis.risk_level);
                     }
+
+                    // Update threat score with actual percentage from analysis
+                    if (data.threat_analysis && typeof data.threat_analysis.score_percentage === 'number') {
+                        console.log('Updating threat score to:', data.threat_analysis.score_percentage);
+                        threatScore = data.threat_analysis.score_percentage;
+                        updateGauge();
+                        
+                        // Add notification for new threats
+                        if (data.threat_analysis.newly_found_keywords.length > 0) {
+                            const message = `${data.threat_analysis.risk_level.toUpperCase()} risk detected: ${data.threat_analysis.newly_found_keywords.join(', ')}`;
+                            addNotification(data.threat_analysis.risk_level, message);
+                        }
+
+                        // Update AI summary if available
+                        if (data.threat_analysis.ai_summary && data.threat_analysis.ai_summary.trim()) {
+                            aiSummary.textContent = data.threat_analysis.ai_summary;
+                        }
+                    } else {
+                        console.log('No valid score_percentage found in threat_analysis');
+                    }
                 } else {
                     interimTranscription.textContent = data.transcript;
+                    
+                    // Update threat score for interim results as well
+                    if (data.threat_analysis && typeof data.threat_analysis.score_percentage === 'number') {
+                        console.log('Updating interim threat score to:', data.threat_analysis.score_percentage);
+                        threatScore = data.threat_analysis.score_percentage;
+                        updateGauge();
+                    }
                 }
             });
 
@@ -85,6 +119,23 @@ document.addEventListener('DOMContentLoaded', function() {
 
             socket.on('transcription_end', (data) => {
                 console.log('🛑 Transcription ended:', data);
+                
+                // Update final threat analysis if available
+                if (data.final_threat_analysis) {
+                    threatScore = data.final_threat_analysis.score_percentage || 0;
+                    updateGauge();
+                    
+                    // Update AI summary with final analysis
+                    if (data.final_threat_analysis.ai_summary) {
+                        aiSummary.textContent = data.final_threat_analysis.ai_summary;
+                    }
+                    
+                    // Add final notification if there were threats detected
+                    if (data.final_threat_analysis.found_keywords && data.final_threat_analysis.found_keywords.length > 0) {
+                        const finalMessage = `Final Analysis: ${data.final_threat_analysis.risk_level.toUpperCase()} risk (${data.final_threat_analysis.score_percentage}%)`;
+                        addNotification(data.final_threat_analysis.risk_level, finalMessage);
+                    }
+                }
             });
 
             socket.on('connection_ready', (data) => {
@@ -254,13 +305,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // --- Monitoring Logic ---
     function startIntervals() {
-      notifInterval = setInterval(() => {
-        const levels = ['low','medium','high'];
-        const lvl    = levels[Math.floor(Math.random()*levels.length)];
-        addNotification(lvl, `${lvl.toUpperCase()} threat detected: 1234567`);
-        threatScore = Math.min(100, threatScore + 15);
-        updateGauge();
-      }, 2000);
+      // Disabled: Using real threat analysis instead of fake notifications
+      // notifInterval = setInterval(() => {
+      //   const levels = ['low','medium','high'];
+      //   const lvl    = levels[Math.floor(Math.random()*levels.length)];
+      //   addNotification(lvl, `${lvl.toUpperCase()} threat detected: 1234567`);
+      //   threatScore = Math.min(100, threatScore + 15);
+      //   updateGauge();
+      // }, 2000);
     }
 
     function clearTimers() {

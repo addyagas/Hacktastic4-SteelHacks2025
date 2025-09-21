@@ -1,28 +1,29 @@
 import re
 
-# Define high priority scam patterns with increased weights
-# HIGH_PRIORITY_MULTIPLIER will be applied to these rules when detected multiple times
-HIGH_PRIORITY_RULES = {
-    "money_transfer": True,
-    "gift_card": True,
-    "crypto": True,
-    "sensitive_request": True,
-    "remote_support": True,
-    "family_emergency": True,
-    "authority_threat": True,
-    "malicious_attachment": True,
-    "disguised_executable": True,
-    "bank_transfer_scam": True,
-    "legal_threat_scam": True,
-    "securities_fraud": True,
-    "nigerian_prince_scam": True
+# Risk level categories for rules
+RISK_LEVELS = {
+    "high": {
+        "multiplier": 3,
+        "rules": {"urgency", "payment", "authority", "account_verification", "prize", "credential_theft", 
+                 "money_transfer", "gift_card", "crypto", "sensitive_request", "authority_threat", 
+                 "bank_transfer_scam", "legal_threat_scam", "securities_fraud", "nigerian_prince_scam"}
+    },
+    "mid": {
+        "multiplier": 2, 
+        "rules": {"phishing", "tech_support", "romance", "health", "social_media", "fake_charity",
+                 "remote_support", "family_emergency", "malicious_attachment", "disguised_executable"}
+    },
+    "low": {
+        "multiplier": 1,
+        "rules": {"generic", "persuasion", "mild_threat", "suspicious_link"}
+    }
 }
 
-# Configuration for frequency-based scoring
-HIGH_PRIORITY_MULTIPLIER = 1.5  # Additional weight multiplier for high priority rules
-FREQUENCY_THRESHOLD = 3  # Number of occurrences before applying frequency multiplier
-FREQUENCY_MULTIPLIER = 1.2  # Multiplier for each occurrence beyond threshold
-MAX_FREQUENCY_MULTIPLIER = 2.5  # Cap on the frequency multiplier
+# Baseline scoring thresholds
+HIGH_RISK_BASELINE_COUNT = 2  # 2 or more high risk words triggers 70% baseline
+MID_RISK_BASELINE_COUNT = 5   # 5 or more mid risk words triggers 50% baseline
+HIGH_RISK_BASELINE_PERCENTAGE = 70
+MID_RISK_BASELINE_PERCENTAGE = 50
 
 # Define the rules
 RULES = [
@@ -145,6 +146,23 @@ RULES = [
     {"rx": re.compile(r"(scam|fraud|suspicious)", re.IGNORECASE), "w": 10, "tag": "self_reference"}
 ]
 
+def get_risk_level(tag):
+    """
+    Get the risk level and multiplier for a given rule tag.
+    
+    Args:
+        tag (str): The rule tag to check
+        
+    Returns:
+        tuple: (risk_level, multiplier) where risk_level is 'high', 'mid', or 'low'
+    """
+    for level, config in RISK_LEVELS.items():
+        if tag in config["rules"]:
+            return level, config["multiplier"]
+    
+    # Default to low risk if tag not found
+    return "low", RISK_LEVELS["low"]["multiplier"]
+
 def interpret_scam_score(percentage_score):
     """Interpret the scam score as a risk level and description"""
     if percentage_score >= 75:
@@ -157,8 +175,8 @@ def interpret_scam_score(percentage_score):
 
 def calculate_scam_score(text):
     """
-    Calculate a scam score for the given text by checking against defined rules.
-    Takes into account both rule matching and the frequency of matches.
+    Calculate a scam score based on the ratio of threat words to total words,
+    weighted by the individual word weights.
     
     Args:
         text (str): The text to analyze for scam indicators
@@ -166,65 +184,83 @@ def calculate_scam_score(text):
     Returns:
         dict: A dictionary containing the score, percentage, matched rules, and interpretation
     """
-    total_score = 0
     matched_rules = []
-    max_score = 80  # Increased max score to account for frequency multipliers
+    threat_word_count = 0
+    total_weighted_score = 0
     
-    # Dictionary to track rule match frequencies
-    rule_frequencies = {}
+    # Count total words in the text (simple word count)
+    words = text.split()
+    total_word_count = len(words)
     
-    # First pass: find all matches and count frequencies
+    if total_word_count == 0:
+        return {
+            "score": 0,
+            "percentageScore": 0,
+            "ratioPercentage": 0,
+            "threatWordCount": 0,
+            "totalWordCount": 0,
+            "matches": [],
+            "riskLevel": "low",
+            "description": "No content to analyze"
+        }
+    
+    # First pass: find all matches and calculate weighted scores
     for rule in RULES:
         tag = rule["tag"]
+        weight = rule["w"]
         matches = list(rule["rx"].finditer(text))
         match_count = len(matches)
         
         if match_count > 0:
-            rule_frequencies[tag] = match_count
+            risk_level, _ = get_risk_level(tag)
             
-            # Calculate base score from the rule
-            base_score = rule["w"]
+            # Each match contributes to threat word count
+            threat_word_count += match_count
             
-            # Apply frequency multiplier for repeated matches
-            frequency_multiplier = 1.0
-            if match_count > FREQUENCY_THRESHOLD:
-                # Calculate multiplier based on occurrence frequency
-                additional_multiplier = min(
-                    (match_count - FREQUENCY_THRESHOLD) * FREQUENCY_MULTIPLIER,
-                    MAX_FREQUENCY_MULTIPLIER
-                )
-                frequency_multiplier += additional_multiplier
-                
-                # Apply higher multiplier for high-priority rules
-                if tag in HIGH_PRIORITY_RULES:
-                    frequency_multiplier *= HIGH_PRIORITY_MULTIPLIER
-            
-            # Apply the calculated score
-            rule_score = base_score * frequency_multiplier
-            total_score += rule_score
+            # Calculate weighted contribution (match count * rule weight)
+            weighted_contribution = match_count * weight
+            total_weighted_score += weighted_contribution
             
             # Record the match details
-            matched_rules.append({
-                "tag": tag, 
-                "weight": rule["w"],
-                "frequency": match_count,
-                "applied_score": round(rule_score, 1),
-                "multiplier": round(frequency_multiplier, 2)
-            })
-
-    percentage_score = min((total_score / max_score) * 100, 100)  # Cap at 100%
+            matched_rule = {
+                "tag": tag,
+                "risk_level": risk_level,
+                "weight": weight,
+                "match_count": match_count,
+                "weighted_contribution": weighted_contribution
+            }
+            matched_rules.append(matched_rule)
+    
+    # Calculate the ratio of threat words to total words
+    threat_ratio = threat_word_count / total_word_count if total_word_count > 0 else 0
+    
+    # Calculate percentage based on ratio and weighted scores
+    # Base percentage from ratio (0-50% range)
+    ratio_percentage = min(threat_ratio * 100, 50)
+    
+    # Additional percentage from weighted scores (0-50% range)
+    # Normalize weighted score - assuming max reasonable weighted score is around 100
+    max_expected_weighted_score = 100
+    weighted_percentage = min((total_weighted_score / max_expected_weighted_score) * 50, 50)
+    
+    # Final percentage is ratio + weighted contribution
+    percentage_score = min(ratio_percentage + weighted_percentage, 100)
+    
     interpretation = interpret_scam_score(percentage_score)
     
     return {
-        "score": round(total_score, 1),
+        "score": round(total_weighted_score, 1),
         "percentageScore": round(percentage_score),
-        "maxPossibleScore": max_score,
+        "ratioPercentage": round(ratio_percentage, 1),
+        "weightedPercentage": round(weighted_percentage, 1),
+        "threatWordCount": threat_word_count,
+        "totalWordCount": total_word_count,
+        "threatRatio": round(threat_ratio, 3),
         "matches": matched_rules,
         "riskLevel": interpretation["level"],
-        "description": interpretation["description"],
-        "ruleFrequencies": rule_frequencies
+        "description": interpretation["description"]
     }
 
 # Export functions for use in other modules
-__all__ = ["calculate_scam_score", "interpret_scam_score", "RULES", 
-           "HIGH_PRIORITY_RULES", "FREQUENCY_THRESHOLD", "FREQUENCY_MULTIPLIER"]
+__all__ = ["calculate_scam_score", "interpret_scam_score", "get_risk_level", "RULES", 
+           "RISK_LEVELS", "HIGH_RISK_BASELINE_COUNT", "MID_RISK_BASELINE_COUNT"]

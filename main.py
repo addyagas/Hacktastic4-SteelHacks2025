@@ -10,6 +10,9 @@ from datetime import datetime
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_socketio import SocketIO, emit
 
+# Import our transcript analyzer
+from live_transcript_analyzer import TranscriptAnalyzer
+
 # --- Configuration ---
 YOUR_API_KEY = "e8f7002b0f854a4dbb208d297e29aa74"  # Replace with your actual API key
 
@@ -45,6 +48,8 @@ class TranscriptionSession:
         self.buffer = []
         self.buffer_lock = threading.Lock()
         self.connected = False
+        # Add a transcript analyzer to the session
+        self.analyzer = TranscriptAnalyzer()
         
     def on_open(self, ws):
         """Called when the WebSocket connection to AssemblyAI is established."""
@@ -73,15 +78,47 @@ class TranscriptionSession:
                 transcript = data.get('transcript', '')
                 formatted = data.get('turn_is_formatted', False)
                 
-                # Send transcription data to the client
-                socketio.emit('transcription_result', {
-                    'transcript': transcript,
-                    'is_final': formatted
-                }, room=self.client_id)
+                # Analyze transcript for threats
+                if transcript:
+                    if formatted:
+                        # For final transcripts, analyze the complete turn
+                        analysis_result = self.analyzer.update_transcript(transcript)
+                    else:
+                        # For interim results, do a quick check but don't update the full transcript
+                        # This avoids polluting the transcript with partial results
+                        temp_analysis = self.analyzer.analyze_text(transcript)
+                        analysis_result = temp_analysis
+                
+                    # Send transcription data and analysis to the client
+                    socketio.emit('transcription_result', {
+                        'transcript': transcript,
+                        'is_final': formatted,
+                        'threat_analysis': {
+                            'found_keywords': analysis_result.get('foundKeywords', []),
+                            'newly_found_keywords': analysis_result.get('newlyFoundKeywords', []),
+                            'risk_level': analysis_result.get('scamAnalysis', {}).get('riskLevel', 'unknown'),
+                            'score_percentage': analysis_result.get('scamAnalysis', {}).get('percentageScore', 0),
+                            'description': analysis_result.get('scamAnalysis', {}).get('description', '')
+                        }
+                    }, room=self.client_id)
+                else:
+                    # Send transcription data without analysis if transcript is empty
+                    socketio.emit('transcription_result', {
+                        'transcript': transcript,
+                        'is_final': formatted
+                    }, room=self.client_id)
                 
                 # For server-side logging
                 if formatted:
                     print(f"\nClient {self.client_id} - Final: {transcript}")
+                    # Log analysis results for final transcript
+                    if transcript:
+                        risk_level = analysis_result.get('scamAnalysis', {}).get('riskLevel', 'unknown')
+                        score = analysis_result.get('scamAnalysis', {}).get('percentageScore', 0)
+                        keywords = ', '.join(analysis_result.get('newlyFoundKeywords', []))
+                        print(f"THREAT ANALYSIS: Risk Level: {risk_level} ({score}%)")
+                        if keywords:
+                            print(f"Keywords Found: {keywords}")
                 else:
                     print(f"\rClient {self.client_id} - Interim: {transcript}", end='')
                     
@@ -90,16 +127,28 @@ class TranscriptionSession:
                 session_duration = data.get('session_duration_seconds', 0)
                 print(f"\nSession Terminated for client {self.client_id}: "
                       f"Audio Duration={audio_duration}s, Session Duration={session_duration}s")
-                # Notify client of session termination
+                
+                # Get final threat analysis
+                final_analysis = self.analyzer.get_final_analysis()
+                
+                # Notify client of session termination with final analysis
                 socketio.emit('transcription_end', {
                     'audio_duration': audio_duration,
-                    'session_duration': session_duration
+                    'session_duration': session_duration,
+                    'final_threat_analysis': {
+                        'found_keywords': final_analysis.get('foundKeywords', []),
+                        'risk_level': final_analysis.get('scamAnalysis', {}).get('riskLevel', 'unknown'),
+                        'score_percentage': final_analysis.get('scamAnalysis', {}).get('percentageScore', 0),
+                        'description': final_analysis.get('scamAnalysis', {}).get('description', ''),
+                        'matches': final_analysis.get('scamAnalysis', {}).get('matches', [])
+                    }
                 }, room=self.client_id)
                 
         except json.JSONDecodeError as e:
             print(f"Error decoding message for client {self.client_id}: {e}")
         except Exception as e:
             print(f"Error handling message for client {self.client_id}: {e}")
+            
             
     def on_error(self, ws, error):
         """Handle WebSocket errors."""
@@ -277,12 +326,12 @@ def create_frontend_files():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Transcription</title>
+    <title>Scam Call Detector</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <div class="container">
-        <h1>Live Transcription</h1>
+        <h1>Scam Call Detector</h1>
         
         <div class="controls">
             <button id="startButton" class="button">Start Transcription</button>
@@ -292,6 +341,23 @@ def create_frontend_files():
         <div class="status-container">
             <div id="status" class="status">Ready</div>
             <div id="connectionStatus" class="connection-status">Disconnected</div>
+        </div>
+        
+        <div class="threat-info">
+            <div class="threat-status">
+                <div class="threat-level-label">Threat Level:</div>
+                <div id="threatLevel" class="threat-level">Unknown</div>
+            </div>
+            <div class="threat-score">
+                <div class="score-label">Score:</div>
+                <div id="threatScore" class="score">0%</div>
+            </div>
+            <div class="threat-description" id="threatDescription">No threats detected yet</div>
+        </div>
+        
+        <div class="keywords-container">
+            <h3>Detected Keywords</h3>
+            <div id="keywordsList" class="keywords-list">None detected</div>
         </div>
         
         <div class="transcription-container">
@@ -337,6 +403,11 @@ h1 {
     color: #333;
 }
 
+h3 {
+    margin-bottom: 10px;
+    color: #444;
+}
+
 .controls {
     display: flex;
     justify-content: center;
@@ -377,6 +448,94 @@ h1 {
     font-weight: bold;
 }
 
+.threat-info {
+    background-color: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+.threat-status {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.threat-level-label, .score-label {
+    font-weight: bold;
+    margin-right: 10px;
+    min-width: 100px;
+}
+
+.threat-level {
+    font-weight: bold;
+    padding: 5px 10px;
+    border-radius: 4px;
+    text-transform: uppercase;
+}
+
+.threat-level.minimal {
+    background-color: #e6f7e6;
+    color: #2e7d32;
+}
+
+.threat-level.low {
+    background-color: #fff9c4;
+    color: #f57f17;
+}
+
+.threat-level.medium {
+    background-color: #ffccbc;
+    color: #e64a19;
+}
+
+.threat-level.high {
+    background-color: #ffcdd2;
+    color: #c62828;
+}
+
+.threat-score {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.score {
+    font-weight: bold;
+}
+
+.threat-description {
+    margin-top: 10px;
+    padding: 10px;
+    background-color: #f0f0f0;
+    border-radius: 4px;
+    font-style: italic;
+}
+
+.keywords-container {
+    background-color: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+.keywords-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.keyword {
+    background-color: #ffccbc;
+    color: #d84315;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
 .transcription-container {
     background-color: #f9f9f9;
     border: 1px solid #ddd;
@@ -406,6 +565,13 @@ h1 {
     background-color: #eaf7ea;
     border-radius: 4px;
 }
+
+.highlighted {
+    background-color: #ffcdd2;
+    color: #b71c1c;
+    padding: 0 2px;
+    border-radius: 2px;
+}
     """
     
     # Create JavaScript file
@@ -418,6 +584,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const connectionStatus = document.getElementById('connectionStatus');
     const interimTranscription = document.getElementById('interimTranscription');
     const finalTranscription = document.getElementById('finalTranscription');
+    const threatLevel = document.getElementById('threatLevel');
+    const threatScore = document.getElementById('threatScore');
+    const threatDescription = document.getElementById('threatDescription');
+    const keywordsList = document.getElementById('keywordsList');
     
     // Variables
     let socket;
@@ -427,6 +597,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let processorNode;
     let stream;
     let isRecording = false;
+    let detectedKeywords = new Set();
     
     // Connect to WebSocket server
     function connectSocket() {
@@ -454,6 +625,8 @@ document.addEventListener('DOMContentLoaded', function() {
             status.textContent = 'Transcription started';
             startButton.disabled = true;
             stopButton.disabled = false;
+            // Reset threat displays
+            resetThreatDisplay();
         });
         
         socket.on('transcription_stopped', (data) => {
@@ -463,6 +636,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         socket.on('transcription_result', (data) => {
+            // Update transcription
             if (data.is_final) {
                 // This is a final transcript
                 const p = document.createElement('p');
@@ -470,9 +644,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 finalTranscription.appendChild(p);
                 finalTranscription.scrollTop = finalTranscription.scrollHeight;
                 interimTranscription.textContent = '';
+                
+                // Highlight the latest paragraph if it contains threat keywords
+                if (data.threat_analysis && data.threat_analysis.newly_found_keywords.length > 0) {
+                    p.innerHTML = highlightKeywords(data.transcript, data.threat_analysis.newly_found_keywords);
+                }
             } else {
                 // This is an interim result
                 interimTranscription.textContent = data.transcript;
+            }
+            
+            // Update threat analysis if available
+            if (data.threat_analysis) {
+                updateThreatDisplay(data.threat_analysis);
             }
         });
         
@@ -485,12 +669,76 @@ document.addEventListener('DOMContentLoaded', function() {
         socket.on('transcription_end', (data) => {
             console.log('Transcription ended:', data);
             status.textContent = 'Transcription ended';
+            
+            // Display final threat analysis if available
+            if (data.final_threat_analysis) {
+                updateThreatDisplay(data.final_threat_analysis);
+                
+                // Show a summary alert if risk level is medium or high
+                if (['medium', 'high'].includes(data.final_threat_analysis.risk_level)) {
+                    alert(`⚠️ SCAM WARNING: This call has been identified as a ${data.final_threat_analysis.risk_level} risk scam.\\n\\n${data.final_threat_analysis.description}`);
+                }
+            }
         });
         
         socket.on('connection_ready', (data) => {
             status.textContent = 'Ready to transcribe';
             startRecording();
         });
+    }
+    
+    // Function to highlight keywords in text
+    function highlightKeywords(text, keywords) {
+        let highlightedText = text;
+        keywords.forEach(keyword => {
+            const regex = new RegExp('\\\\b(' + keyword + ')\\\\b', 'gi');
+            highlightedText = highlightedText.replace(regex, '<span class="highlighted">$1</span>');
+        });
+        return highlightedText;
+    }
+    
+    // Reset the threat display
+    function resetThreatDisplay() {
+        threatLevel.textContent = 'Unknown';
+        threatLevel.className = 'threat-level';
+        threatScore.textContent = '0%';
+        threatDescription.textContent = 'No threats detected yet';
+        keywordsList.textContent = 'None detected';
+        detectedKeywords.clear();
+    }
+    
+    // Update the threat display with new analysis
+    function updateThreatDisplay(analysis) {
+        // Update threat level
+        if (analysis.risk_level) {
+            threatLevel.textContent = analysis.risk_level.toUpperCase();
+            threatLevel.className = 'threat-level ' + analysis.risk_level;
+        }
+        
+        // Update score
+        if (analysis.score_percentage !== undefined) {
+            threatScore.textContent = analysis.score_percentage + '%';
+        }
+        
+        // Update description
+        if (analysis.description) {
+            threatDescription.textContent = analysis.description;
+        }
+        
+        // Update keywords list
+        if (analysis.found_keywords && analysis.found_keywords.length > 0) {
+            // Add newly found keywords to the set
+            analysis.found_keywords.forEach(keyword => detectedKeywords.add(keyword));
+            
+            // Update the keywords list display
+            keywordsList.innerHTML = '';
+            detectedKeywords.forEach(keyword => {
+                const keywordElement = document.createElement('span');
+                keywordElement.className = 'keyword';
+                keywordElement.textContent = keyword;
+                keywordsList.appendChild(keywordElement);
+            });
+        }
     }
     
     // Initialize audio processing
@@ -627,13 +875,13 @@ document.addEventListener('DOMContentLoaded', function() {
     """
     
     # Write files to disk
-    with open('templates/index.html', 'w') as f:
+    with open('templates/index.html', 'w', encoding='utf-8') as f:
         f.write(html_content)
     
-    with open('static/style.css', 'w') as f:
+    with open('static/style.css', 'w', encoding='utf-8') as f:
         f.write(css_content)
     
-    with open('static/app.js', 'w') as f:
+    with open('static/app.js', 'w', encoding='utf-8') as f:
         f.write(js_content)
     
     print("Frontend files created successfully")

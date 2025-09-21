@@ -7,6 +7,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const connectionStatus = document.getElementById('connectionStatus');
     const interimTranscription = document.getElementById('interimTranscription');
     const finalTranscription = document.getElementById('finalTranscription');
+    const threatLevel = document.getElementById('threatLevel');
+    const threatScore = document.getElementById('threatScore');
+    const threatDescription = document.getElementById('threatDescription');
+    const keywordsList = document.getElementById('keywordsList');
     
     // Variables
     let socket;
@@ -16,6 +20,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let processorNode;
     let stream;
     let isRecording = false;
+    let detectedKeywords = new Set();
     
     // Connect to WebSocket server
     function connectSocket() {
@@ -43,6 +48,8 @@ document.addEventListener('DOMContentLoaded', function() {
             status.textContent = 'Transcription started';
             startButton.disabled = true;
             stopButton.disabled = false;
+            // Reset threat displays
+            resetThreatDisplay();
         });
         
         socket.on('transcription_stopped', (data) => {
@@ -52,6 +59,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         socket.on('transcription_result', (data) => {
+            // Update transcription
             if (data.is_final) {
                 // This is a final transcript
                 const p = document.createElement('p');
@@ -59,9 +67,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 finalTranscription.appendChild(p);
                 finalTranscription.scrollTop = finalTranscription.scrollHeight;
                 interimTranscription.textContent = '';
+                
+                // Highlight the latest paragraph if it contains threat keywords
+                if (data.threat_analysis && data.threat_analysis.newly_found_keywords.length > 0) {
+                    p.innerHTML = highlightKeywords(data.transcript, data.threat_analysis.newly_found_keywords);
+                }
             } else {
                 // This is an interim result
                 interimTranscription.textContent = data.transcript;
+            }
+            
+            // Update threat analysis if available
+            if (data.threat_analysis) {
+                updateThreatDisplay(data.threat_analysis);
             }
         });
         
@@ -74,12 +92,76 @@ document.addEventListener('DOMContentLoaded', function() {
         socket.on('transcription_end', (data) => {
             console.log('Transcription ended:', data);
             status.textContent = 'Transcription ended';
+            
+            // Display final threat analysis if available
+            if (data.final_threat_analysis) {
+                updateThreatDisplay(data.final_threat_analysis);
+                
+                // Show a summary alert if risk level is medium or high
+                if (['medium', 'high'].includes(data.final_threat_analysis.risk_level)) {
+                    alert(`⚠️ SCAM WARNING: This call has been identified as a ${data.final_threat_analysis.risk_level} risk scam.\n\n${data.final_threat_analysis.description}`);
+                }
+            }
         });
         
         socket.on('connection_ready', (data) => {
             status.textContent = 'Ready to transcribe';
             startRecording();
         });
+    }
+    
+    // Function to highlight keywords in text
+    function highlightKeywords(text, keywords) {
+        let highlightedText = text;
+        keywords.forEach(keyword => {
+            const regex = new RegExp('\\b(' + keyword + ')\\b', 'gi');
+            highlightedText = highlightedText.replace(regex, '<span class="highlighted">$1</span>');
+        });
+        return highlightedText;
+    }
+    
+    // Reset the threat display
+    function resetThreatDisplay() {
+        threatLevel.textContent = 'Unknown';
+        threatLevel.className = 'threat-level';
+        threatScore.textContent = '0%';
+        threatDescription.textContent = 'No threats detected yet';
+        keywordsList.textContent = 'None detected';
+        detectedKeywords.clear();
+    }
+    
+    // Update the threat display with new analysis
+    function updateThreatDisplay(analysis) {
+        // Update threat level
+        if (analysis.risk_level) {
+            threatLevel.textContent = analysis.risk_level.toUpperCase();
+            threatLevel.className = 'threat-level ' + analysis.risk_level;
+        }
+        
+        // Update score
+        if (analysis.score_percentage !== undefined) {
+            threatScore.textContent = analysis.score_percentage + '%';
+        }
+        
+        // Update description
+        if (analysis.description) {
+            threatDescription.textContent = analysis.description;
+        }
+        
+        // Update keywords list
+        if (analysis.found_keywords && analysis.found_keywords.length > 0) {
+            // Add newly found keywords to the set
+            analysis.found_keywords.forEach(keyword => detectedKeywords.add(keyword));
+            
+            // Update the keywords list display
+            keywordsList.innerHTML = '';
+            detectedKeywords.forEach(keyword => {
+                const keywordElement = document.createElement('span');
+                keywordElement.className = 'keyword';
+                keywordElement.textContent = keyword;
+                keywordsList.appendChild(keywordElement);
+            });
+        }
     }
     
     // Initialize audio processing

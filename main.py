@@ -80,28 +80,54 @@ class TranscriptionSession:
                 
                 # Analyze transcript for threats
                 if transcript:
+                    # Minimum length for analyzing interim transcripts (approximately 5+ words)
+                    MIN_INTERIM_LENGTH = 15
+                    
                     if formatted:
-                        # For final transcripts, analyze the complete turn
+                        # For final transcripts, always analyze the complete turn
                         analysis_result = self.analyzer.update_transcript(transcript)
+                        send_analysis = True
                     else:
-                        # For interim results, do a quick check but don't update the full transcript
-                        # This avoids polluting the transcript with partial results
-                        temp_analysis = self.analyzer.analyze_text(transcript)
-                        analysis_result = temp_analysis
-                
-                    # Send transcription data and analysis to the client
-                    socketio.emit('transcription_result', {
-                        'transcript': transcript,
-                        'is_final': formatted,
-                        'threat_analysis': {
-                            'found_keywords': analysis_result.get('foundKeywords', []),
-                            'newly_found_keywords': analysis_result.get('newlyFoundKeywords', []),
-                            'risk_level': analysis_result.get('scamAnalysis', {}).get('riskLevel', 'unknown'),
-                            'score_percentage': analysis_result.get('scamAnalysis', {}).get('percentageScore', 0),
-                            'description': analysis_result.get('scamAnalysis', {}).get('description', ''),
-                            'ai_summary': analysis_result.get('aiSummary', '')
-                        }
-                    }, room=self.client_id)
+                        # For interim results, only analyze if:
+                        # 1. The transcript is long enough to be meaningful (not just one or two words)
+                        # 2. It contains potential keywords or patterns
+                        if len(transcript) >= MIN_INTERIM_LENGTH:
+                            # Do a quick check but don't update the full transcript
+                            temp_analysis = self.analyzer.analyze_text(transcript, is_interim=True)
+                            analysis_result = temp_analysis
+                            
+                            # Only send analysis if there are keywords found or risk score > 0
+                            has_keywords = len(temp_analysis.get('foundKeywords', [])) > 0
+                            has_score = temp_analysis.get('scamAnalysis', {}).get('percentageScore', 0) > 0
+                            send_analysis = has_keywords or has_score
+                        else:
+                            # Too short to analyze meaningfully
+                            send_analysis = False
+                    
+                    # Send transcription data with or without analysis
+                    if send_analysis:
+                        # For interim results, don't include AI summary to prevent it from being shown during recording
+                        ai_summary = analysis_result.get('aiSummary', '') if formatted else ''
+                        
+                        socketio.emit('transcription_result', {
+                            'transcript': transcript,
+                            'is_final': formatted,
+                            'threat_analysis': {
+                                'found_keywords': analysis_result.get('foundKeywords', []),
+                                'newly_found_keywords': analysis_result.get('newlyFoundKeywords', []),
+                                'risk_level': analysis_result.get('scamAnalysis', {}).get('riskLevel', 'unknown'),
+                                'score_percentage': analysis_result.get('scamAnalysis', {}).get('percentageScore', 0),
+                                'description': analysis_result.get('scamAnalysis', {}).get('description', ''),
+                                'ai_summary': ai_summary,
+                                'is_final_analysis': formatted  # Only mark as final if it's a formatted result
+                            }
+                        }, room=self.client_id)
+                    else:
+                        # Send transcription data without analysis
+                        socketio.emit('transcription_result', {
+                            'transcript': transcript,
+                            'is_final': formatted
+                        }, room=self.client_id)
                 else:
                     # Send transcription data without analysis if transcript is empty
                     socketio.emit('transcription_result', {
@@ -143,7 +169,8 @@ class TranscriptionSession:
                             'score_percentage': final_analysis.get('scamAnalysis', {}).get('percentageScore', 0),
                             'description': final_analysis.get('scamAnalysis', {}).get('description', ''),
                             'matches': final_analysis.get('scamAnalysis', {}).get('matches', []),
-                            'ai_summary': final_analysis.get('aiSummary', '')
+                            'ai_summary': final_analysis.get('aiSummary', ''),
+                            'is_final_analysis': True  # Flag to indicate this is the final analysis
                         }
                     }, room=self.client_id)
                 else:
@@ -290,9 +317,36 @@ def handle_stop_transcription():
     print(f"Stopping transcription for client: {client_id}")
     
     if client_id in client_sessions:
-        client_sessions[client_id].stop()
+        # Get final analysis before stopping
+        session = client_sessions[client_id]
+        final_analysis_data = None
+        
+        # Only get final analysis if there's transcript content
+        if session.analyzer.current_transcript.strip():
+            final_analysis = session.analyzer.get_final_analysis()
+            # Add flag for final analysis
+            if final_analysis:
+                final_analysis_data = {
+                    'found_keywords': final_analysis.get('foundKeywords', []),
+                    'risk_level': final_analysis.get('scamAnalysis', {}).get('riskLevel', 'unknown'),
+                    'score_percentage': final_analysis.get('scamAnalysis', {}).get('percentageScore', 0),
+                    'description': final_analysis.get('scamAnalysis', {}).get('description', ''),
+                    'ai_summary': final_analysis.get('aiSummary', ''),
+                    'is_final_analysis': True
+                }
+            
+        # Stop the session
+        session.stop()
         del client_sessions[client_id]
-        emit('transcription_stopped', {'status': 'stopped'})
+        
+        # Send response with final analysis if available
+        if final_analysis_data:
+            emit('transcription_stopped', {
+                'status': 'stopped',
+                'final_analysis': final_analysis_data
+            })
+        else:
+            emit('transcription_stopped', {'status': 'stopped'})
     else:
         emit('transcription_error', {'error': 'No active session'})
 

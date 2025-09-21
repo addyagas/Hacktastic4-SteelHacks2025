@@ -110,7 +110,7 @@ RULES = [
     # Investment and crypto scams
     {"rx": re.compile(r"(guaranteed.*return.*investment|risk.*free.*trading.*opportunity)", re.IGNORECASE), "w": 16, "tag": "investment_scam"},
     {"rx": re.compile(r"(double.*your.*bitcoin|crypto.*mining.*investment.*guaranteed)", re.IGNORECASE), "w": 18, "tag": "crypto_investment_scam"},
-    {"rx": re.compile(r"(pump.*and.*dump.*scheme|insider.*trading.*tip)", re.IGNORECASE), "w": 20, "tag": "securities_fraud"},
+    {"rx": re.compile(r"(pump.*and.*dump.*scheme|insider.*trading.*tip)", re.IGNORECASE), "w": 10, "tag": "securities_fraud"},
   
     # Job and work-from-home scams
     {"rx": re.compile(r"(work.*from.*home.*no.*experience.*needed|make.*money.*online.*guaranteed)", re.IGNORECASE), "w": 14, "tag": "work_from_home_scam"},
@@ -142,7 +142,7 @@ RULES = [
   
     # Generic phishing indicators
     {"rx": re.compile(r"(help me|need your help|please help)", re.IGNORECASE), "w": 8, "tag": "help_request"},
-    {"rx": re.compile(r"(scam|fraud|suspicious)", re.IGNORECASE), "w": 6, "tag": "self_reference"}
+    {"rx": re.compile(r"(scam|fraud|suspicious)", re.IGNORECASE), "w": 10, "tag": "self_reference"}
 ]
 
 def interpret_scam_score(percentage_score):
@@ -168,7 +168,7 @@ def calculate_scam_score(text):
     """
     total_score = 0
     matched_rules = []
-    max_score = 150  # Increased max score to account for frequency multipliers
+    max_score = 200  # Increased max score to account for frequency multipliers
     
     # Dictionary to track rule match frequencies
     rule_frequencies = {}

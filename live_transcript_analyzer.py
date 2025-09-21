@@ -1,4 +1,5 @@
 import re
+import time
 from constants import THREAT_KEYWORDS, generate_scam_summary
 from rules import calculate_scam_score
 
@@ -23,6 +24,10 @@ class TranscriptAnalyzer:
         self.latest_analysis = None
         # Store the latest AI summary
         self.latest_summary = None
+        # Keep track of the last interim analysis timestamp to avoid too frequent updates
+        self.last_interim_analysis_time = 0
+        # Minimum time between interim analyses (in seconds)
+        self.interim_analysis_interval = 1.5
 
     def update_transcript(self, new_text):
         """
@@ -37,17 +42,36 @@ class TranscriptAnalyzer:
         self.current_transcript += " " + new_text
         return self.analyze_current_transcript()
     
-    def analyze_text(self, text):
+    def analyze_text(self, text, is_interim=True):
         """
         Analyze a text snippet without updating the stored transcript
         Useful for analyzing interim results without adding them to the transcript
         
         Args:
             text (str): Text to analyze
+            is_interim (bool): Whether this is an interim (partial) result
             
         Returns:
             dict: Analysis results including found keywords and scam score
         """
+        # For interim results, check if we should throttle the analysis
+        if is_interim:
+            current_time = time.time()
+            # If it's too soon since the last interim analysis, return the previous analysis
+            if (current_time - self.last_interim_analysis_time) < self.interim_analysis_interval:
+                # If we have a previous analysis, return that
+                if self.latest_analysis is not None:
+                    return {
+                        "foundKeywords": list(self.found_keywords),
+                        "keywordCount": len(self.found_keywords),
+                        "newlyFoundKeywords": [],
+                        "scamAnalysis": self.latest_analysis,
+                        "transcript": text,
+                        "aiSummary": self.latest_summary
+                    }
+            # Update the last analysis time
+            self.last_interim_analysis_time = current_time
+        
         # Find threat keywords in the text
         found_keywords = []
         for keyword, pattern in self.keyword_patterns.items():

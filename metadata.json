@@ -1,8 +1,0 @@
-
-{
-  "name": "Senior Guard: Scam Detector",
-  "description": "An application designed for senior citizens to detect potential scams in real-time conversations by analyzing spoken words for threatening keywords and providing AI-powered explanations.",
-  "requestFramePermissions": [
-    "microphone"
-  ]
-}

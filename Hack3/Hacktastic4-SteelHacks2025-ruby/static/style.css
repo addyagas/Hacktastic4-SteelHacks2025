@@ -178,6 +178,12 @@ h2 {
   border: 1px solid rgba(75, 85, 99, 0.5);
   backdrop-filter: blur(3px);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+.transcript-container::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
 }
 
 /* Media queries for better responsiveness on different devices */

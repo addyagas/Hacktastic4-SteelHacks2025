@@ -18,11 +18,21 @@ html, body {
 
 .notification-item {
   animation: slideInLeft 0.4s ease-out;
+  /* Make notifications non-interactive: no pointer events and default cursor */
+  pointer-events: none !important;
+  cursor: default !important;
 }
 
 .scroll-container::-webkit-scrollbar {
   display: none;
 }
+
+/* Hide scrollbars across browsers while preserving scroll behavior */
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+.no-scrollbar::-webkit-scrollbar { display: none; } /* Chrome, Safari, Opera */
 
 .interim-transcription {
     color: #bbb; /* Higher contrast than #888 */
@@ -168,19 +178,18 @@ h2 {
   }
 }
 
-/* Larger click targets for better accessibility */
 .notification-item {
-  cursor: pointer;
+  /* Ensure notifications are readable but not interactive */
   min-height: 48px;
   display: flex;
   align-items: center;
 }
 
-/* Focus indicators for keyboard navigation */
+/* Remove hover and focus outlines for notifications since they are non-interactive */
 .notification-item:focus,
 .notification-item:hover {
-  outline: 2px solid #00ffff;
-  outline-offset: 2px;
+  outline: none;
+  outline-offset: 0;
 }
 
 /* Ensure readable text sizes across all elements */
